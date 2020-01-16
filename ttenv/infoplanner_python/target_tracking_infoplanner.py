@@ -2,15 +2,15 @@ import numpy as np
 from numpy import linalg as LA
 import os
 
-from maps import map_utils
-import util
+from ttenv.maps import map_utils
+import ttenv.util as util
 
-from agent_models import Agent
-from metadata import METADATA
-from target_tracking import TargetTrackingEnv1
+from ttenv.agent_models import Agent
+from ttenv.metadata import METADATA
+from ttenv.target_tracking import TargetTrackingEnv1
 
-import infoplanner_python as infoplanner
-from infoplanner_python.infoplanner_binding import Configure, Policy
+import ttenv.infoplanner_python as infoplanner
+from ttenv.infoplanner_python.infoplanner_binding import Configure, Policy
 
 
 class BeliefWrapper(object):

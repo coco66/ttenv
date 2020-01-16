@@ -1,9 +1,9 @@
 import numpy as np
 import pickle
 import datetime, json, os, argparse, time
-import infoplanner_python as infoplanner
+import ttenv.infoplanner_python as infoplanner
 
-import envs
+import ttenv
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--seed', help='RNG seed', type=int, default=0)
@@ -35,8 +35,7 @@ if __name__ == "__main__":
             ValueError("The directory already exists...", directory)
     json.dump(vars(args), open(os.path.join(directory, 'test_prop.json'), 'w'))
 
-    env = envs.make(args.env,
-                    'target_tracking',
+    env = ttenv.make(args.env,
                     render = bool(args.render),
                     record = bool(args.record),
                     ros = bool(args.ros),
