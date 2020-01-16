@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-PYTHONPATH="${PYTHONPATH}:/home/heejin/ros_catkin_ws/src/ig_manager/scripts/"
-export PYTHONPATH
-"""
 # from ig_manager import IGManager
 # import rospy
 import scipy.io as sio
