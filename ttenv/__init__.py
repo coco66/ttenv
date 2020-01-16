@@ -25,6 +25,9 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
         env0 = target_tracking.TargetTrackingEnv3(**kwargs)
     elif env_name == 'TargetTracking-v4':
         env0 = target_tracking.TargetTrackingEnv4(**kwargs)
+    elif env_name == 'TargetTracking-v5':
+            from ttenv.target_imtracking import TargetTrackingEnv5
+            env0 = TargetTrackingEnv5(**kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(**kwargs)
