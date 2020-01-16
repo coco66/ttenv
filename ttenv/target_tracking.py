@@ -312,14 +312,23 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 class TargetTrackingEnv2(TargetTrackingEnv1):
-    def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True,
+                known_noise=True, target_path_dir=None, **kwargs):
+        """
+        A predefined path for each target must be provided under the target_path_dir.
+        Each path_i file for i=target_num is a T by 4 matrix where T is the
+        number of time steps in a trajectory (or per episode). Each row consists
+        of (x, y, xdot, ydot).
+        """
+        if target_path_dir is None:
+            raise ValueError('No path directory for targets is provided.')
         TargetTrackingEnv1.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v2'
         self.targets = [Agent2DFixedPath(dim=self.target_dim, sampling_period=self.sampling_period,
                                 limit=self.limit['target'],
                                 collision_func=lambda x: map_utils.is_collision(self.MAP, x),
-                                path=np.load("path_sh_%d.npy"%(i+1))) for i in range(self.num_targets)]
+                                path=np.load(os.path.join(target_path_dir, "path_%d.npy"%(i+1)))) for i in range(self.num_targets)]
     def reset(self, init_random = True):
         self.state = []
         if init_random:
