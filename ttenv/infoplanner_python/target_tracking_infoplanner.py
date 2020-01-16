@@ -2,15 +2,15 @@ import numpy as np
 from numpy import linalg as LA
 import os
 
-from envs.maps import map_utils
-import envs.env_util as util
+from maps import map_utils
+import util
 
-from envs.target_tracking.agent_models import Agent
-from envs.target_tracking.metadata import METADATA
-from envs.target_tracking.target_tracking import TargetTrackingEnv1
+from agent_models import Agent
+from metadata import METADATA
+from target_tracking import TargetTrackingEnv1
 
-import envs.target_tracking.infoplanner as infoplanner
-from envs.target_tracking.infoplanner.infoplanner_binding import Configure, Policy
+import infoplanner_python as infoplanner
+from infoplanner_python.infoplanner_binding import Configure, Policy
 
 
 class BeliefWrapper(object):

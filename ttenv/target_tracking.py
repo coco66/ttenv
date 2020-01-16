@@ -45,12 +45,12 @@ import numpy as np
 from numpy import linalg as LA
 import os, copy
 
-from envs.maps import map_utils
-from envs.target_tracking.agent_models import *
-from envs.target_tracking.policies import *
-from envs.target_tracking.belief_tracker import KFbelief, UKFbelief
-from envs.target_tracking.metadata import METADATA
-import envs.env_util as util
+from ttenv.maps import map_utils
+from ttenv.agent_models import *
+from ttenv.policies import *
+from ttenv.belief_tracker import KFbelief, UKFbelief
+from ttenv.metadata import METADATA
+import ttenv.util as util
 
 class TargetTrackingEnv0(gym.Env):
     def __init__(self, num_targets=1, map_name='empty',

@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 import datetime, json, os, argparse, time
-import envs.target_tracking.infoplanner as infoplanner
+import infoplanner_python as infoplanner
 
 import envs
 

@@ -1,6 +1,6 @@
 # Control policies
 import numpy as np
-import envs.env_util as util
+import ttenv.util as util
 
 class RandomPolicy():
     def __init__(self, lim_vel=2.0):

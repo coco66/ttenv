@@ -1,9 +1,9 @@
 """
 This binding file was modified from the original file in https://bitbucket.org/brentsc/infoplanner.git.
-for this target tracking environment. 
+for this target tracking environment.
 """
 import numpy as np
-import envs.target_tracking.infoplanner as infoplanner
+import infoplanner_python as infoplanner
 
 # Example target locations
 '''

@@ -13,8 +13,8 @@ SEDynamicsVel : update dynamics function for contant linear and angular velociti
 """
 
 import numpy as np
-from envs.target_tracking.metadata import METADATA
-import envs.env_util as util
+from ttenv.metadata import METADATA
+import ttenv.util as util 
 
 class Agent(object):
     def __init__(self, dim, sampling_period, limit, collision_func, margin=METADATA['margin']):

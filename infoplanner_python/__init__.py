@@ -1,1 +1,0 @@
-import pyInfoGathering as IGL

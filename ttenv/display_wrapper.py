@@ -1,14 +1,15 @@
 from gym import Wrapper
 import numpy as np
 from numpy import linalg as LA
+import os
 
-import pdb, os
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 from matplotlib import patches
 from matplotlib import animation
-from envs.target_tracking.metadata import METADATA
+
+from ttenv.metadata import METADATA
 
 LOCAL_VIEW = False
 class Display2D(Wrapper):

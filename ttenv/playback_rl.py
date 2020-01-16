@@ -3,13 +3,11 @@
 from ig_manager import IGManager
 import numpy as np
 import rospy
-import pdb
-
 
 # To use RL generated data in ROS
 if __name__ == "__main__":
 	node = IGManager()
-	filename = node.data 
+	filename = node.data
 
 	data = pickle.load(open(filename), 'rb')
 	# Load data

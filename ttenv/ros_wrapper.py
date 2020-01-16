@@ -4,14 +4,12 @@ PYTHONPATH="${PYTHONPATH}:/home/heejin/ros_catkin_ws/src/ig_manager/scripts/"
 export PYTHONPATH
 """
 # from ig_manager import IGManager
-# import rospy 
+# import rospy
 import scipy.io as sio
-import numpy as np 
-import pdb
-from gym import Wrapper
 import numpy as np
+from gym import Wrapper
 
-from envs.target_tracking.metadata import *
+from ttenv.metadata import METADATA
 
 class Ros(Wrapper):
     def __init__(self, env, skip=3):
@@ -25,7 +23,7 @@ class Ros(Wrapper):
         while(node.robot_states[0] is None):  # Sleep Until ODOM is received to ensure things are set up.
             rate.sleep()
 
-    def render(self, traj_num=None): 
+    def render(self, traj_num=None):
         if (traj_num is not None) and (traj_num%self.skip==0):
             assert(self.num_robots == 1) # For now
             env = self.env.env
@@ -52,17 +50,17 @@ class RosLog(object):
         self.records = metadata
 
     def log(self, env_i):
-        
-        n = 0 
-        env = env_i 
+
+        n = 0
+        env = env_i
         while(n < self.wrapped_num):
-            env = env.env 
+            env = env.env
             n += 1
         self.robots.append([env.agent.state])
-        t_state = [np.concatenate((env.targets[i].state[:2], 
+        t_state = [np.concatenate((env.targets[i].state[:2],
                                     [np.arctan2(env.targets[i].state[-1], env.targets[i].state[-2])]))
                                     for i in range(self.num_targets)]
-        b_state = [np.concatenate((env.belief_targets[i].state[:2], 
+        b_state = [np.concatenate((env.belief_targets[i].state[:2],
                                     [np.arctan2(env.belief_targets[i].state[-1], env.belief_targets[i].state[-2])]))
                                     for i in range(self.num_targets)]
         self.targets.append(t_state)
@@ -72,17 +70,9 @@ class RosLog(object):
     def save(self, path=''):
         self.records['num_robots'] = 1
         self.records['num_targets'] = self.num_targets
-        self.records['robots'] = self.robots 
+        self.records['robots'] = self.robots
         self.records['targets'] = self.targets
         self.records['belief_targets'] = self.belief_targets
         self.records['belief_covs'] = self.belief_covs
         import os, pickle
         pickle.dump(self.records, open(os.path.join(path,'ros_log.pkl'),'wb'), protocol=2)
-
-
-
-
-
-
-
-
