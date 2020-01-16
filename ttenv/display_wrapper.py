@@ -11,9 +11,8 @@ from matplotlib import animation
 
 from ttenv.metadata import METADATA
 
-LOCAL_VIEW = False
 class Display2D(Wrapper):
-    def __init__(self, env, figID = 0, skip = 1, confidence=0.95):
+    def __init__(self, env, figID = 0, skip = 1, confidence=0.95, local_view=False):
         super(Display2D, self).__init__(env)
         self.figID = figID # figID = 0 : train, figID = 1 : test
         self.env_core = env.env
@@ -26,7 +25,8 @@ class Display2D(Wrapper):
         self.mapmax = self.env_core.MAP.mapmax
         self.mapres = self.env_core.MAP.mapres
         self.fig = plt.figure(self.figID)
-        if LOCAL_VIEW:
+        self.local_view = local_view
+        if local_view:
             self.fig0 = plt.figure(self.figID+1)
         self.n_frames = 0
         self.skip = skip
@@ -53,7 +53,7 @@ class Display2D(Wrapper):
             ax = self.fig.subplots()
             im = None
 
-            if LOCAL_VIEW:
+            if self.local_view:
                 self.fig0.clf()
                 ax0 = self.fig0.subplots()
 
@@ -79,7 +79,7 @@ class Display2D(Wrapper):
                             zorder=2, facecolor='g', alpha=0.5)
                 ax.add_patch(belief_target)
 
-            if LOCAL_VIEW:
+            if self.local_view:
                 im_size = self.env_core.im_size
                 local_vew = patches.Rectangle(self.env_core.local_mapmin_g, width=im_size*self.mapres[0],
                                                     height=im_size*self.mapres[0], angle=(state[2]-np.pi/2)/np.pi*180,
@@ -99,7 +99,7 @@ class Display2D(Wrapper):
             ax.set_aspect('equal','box')
             ax.grid()
 
-            if LOCAL_VIEW:
+            if self.local_view:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
                 im0 = ax0.imshow(np.reshape(self.env_core.local_map, (im_size,im_size)),
                             cmap='gray_r', origin='upper',
@@ -122,13 +122,14 @@ class Display2D(Wrapper):
         return self.env.reset(**kwargs)
 
 class Video2D(Wrapper):
-    def __init__(self, env, dirname = '', skip = 1, dpi=80):
+    def __init__(self, env, dirname = '', skip = 1, dpi=80, local_view=False):
         super(Video2D, self).__init__(env)
+        self.local_view = local_view
         self.skip = skip
         self.moviewriter = animation.FFMpegWriter()
         fname = os.path.join(dirname, 'train_%d.mp4'%np.random.randint(0,20))
         self.moviewriter.setup(fig=env.fig, outfile=fname, dpi=dpi)
-        if LOCAL_VIEW:
+        if self.local_view:
             self.moviewriter0 = animation.FFMpegWriter()
             fname0 = os.path.join(dirname, 'train_local_%d.mp4'%np.random.randint(0,20))
             self.moviewriter0.setup(fig=env.fig0, outfile=fname0, dpi=dpi)
@@ -139,7 +140,7 @@ class Video2D(Wrapper):
         #if traj_num % self.skip == 0:
             self.env.render(record=True, *args, **kwargs)
         self.moviewriter.grab_frame()
-        if LOCAL_VIEW:
+        if self.local_view:
             self.moviewriter0.grab_frame()
         self.n_frames += 1
 
