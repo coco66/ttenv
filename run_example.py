@@ -23,14 +23,12 @@ def main():
                     num_targets=args.nb_targets,
                     is_training=False,
                     )
-    num_actions = env.action_space.n
     nlogdetcov = []
     obs, done = env.reset(), False
     while(not done):
         if args.render:
             env.render()
-        action = np.random.randint(0, high=num_actions-1)
-        obs, rew, done, info = env.step(action)
+        obs, rew, done, info = env.step(env.action_space.sample())
         nlogdetcov.append(info['mean_nlogdetcov'])
 
     print("Sum of negative logdet of the target belief covariances : %.2f"%np.sum(nlogdetcov))
