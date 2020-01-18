@@ -513,8 +513,8 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
         self.state = np.array(self.state)
         return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
-def reward_fun(belief_targets, obstacles_pt, observed, is_training=True,
-        c_mean=0.1, c_std=0.1, c_observed=1.0, c_penalty=1.0):
+def reward_fun_0(belief_targets, obstacles_pt, observed, is_training=True,
+        c_mean=0.1, c_std=0.1, c_observed=0.1, c_penalty=1.0):
 
     # Penalty when it is closed to an obstacle.
     if obstacles_pt is None:
@@ -530,11 +530,25 @@ def reward_fun(belief_targets, obstacles_pt, observed, is_training=True,
     # reward = - c_penalty * penalty + c_mean * r_detcov_mean + \
     #              c_std * r_detcov_std + c_observed * r_observed
     if sum(observed) == 0:
-        reward = - c_penalty * penalty
+        reward = - c_penalty * penalty + c_mean * r_detcov_mean + \
+                     c_std * r_detcov_std
     else:
         reward = - c_penalty * penalty + c_mean * r_detcov_mean + \
                      c_std * r_detcov_std
         reward = max(0.0, reward) + c_observed * r_observed
+
+    mean_nlogdetcov = None
+    if not(is_training):
+        logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
+        mean_nlogdetcov = -np.mean(logdetcov)
+    return reward, False, mean_nlogdetcov
+
+def reward_fun(belief_targets, obstacles_pt, observed, is_training=True,
+        c_mean=0.01):
+
+    detcov = [LA.det(b_target.cov) for b_target in belief_targets]
+    r_detcov_mean = - np.mean(np.log(detcov))
+    reward = c_mean * r_detcov_mean
 
     mean_nlogdetcov = None
     if not(is_training):
