@@ -113,7 +113,7 @@ class TargetTrackingEnv0(gym.Env):
                                 for _ in range(num_targets)]
         self.reset_num = 0
 
-    def get_init_pose(self, init_random=True):
+    def get_init_pose(self, init_random=True, file_path="."):
         if init_random:
             init_pose = {}
             if self.MAP.map is None:
@@ -146,14 +146,14 @@ class TargetTrackingEnv0(gym.Env):
                 init_pose['belief_targets'].append(np.concatenate((tb_init, [0.0])))
         else: # Load initial positions of the targets and the agent from a file.
             import pickle
-            given_file = pickle.load(open('test_init_pos.pkl','rb'))
+            given_file = pickle.load(open(file_path,'rb'))
             init_pose = given_file[self.reset_num]
             self.reset_num += 1
         return init_pose
 
-    def reset(self, init_random = True):
+    def reset(self, init_random=True, file_path="."):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random)
+        init_pose = self.get_init_pose(init_random=init_random, file_path=file_path)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
@@ -256,9 +256,9 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                             collision_func=lambda x: map_utils.is_collision(self.MAP, x))
                             for _ in range(num_targets)]
 
-    def reset(self, init_random = True):
+    def reset(self, init_random = True, file_path="."):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random)
+        init_pose = self.get_init_pose(init_random=init_random, file_path=file_path)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
@@ -463,9 +463,9 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                             collision_func=lambda x: map_utils.is_collision(self.MAP, x))
                             for _ in range(num_targets)]
 
-    def reset(self, init_random = True):
+    def reset(self, init_random = True, file_path="."):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random)
+        init_pose = self.get_init_pose(init_random=init_random, file_path=file_path)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
