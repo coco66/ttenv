@@ -205,6 +205,8 @@ class TargetTrackingEnv0(gym.Env):
             while(not is_agent_valid):
                 init_pose = {}
                 if self.MAP.map is None:
+                    if blocked:
+                        raise ValueError('Unable to find a blocked initial condition. There is no obstacle in this map.')
                     a_init = self.agent_init_pos[:2]
                     is_agent_valid = True
                 else:
