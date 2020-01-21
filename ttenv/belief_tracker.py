@@ -5,7 +5,7 @@ UKFbelief : Belief Update using Unscented Kalman Filter using filterpy library
 """
 import numpy as np
 from numpy import linalg as LA
-import ttenv.util as util 
+import ttenv.util as util
 
 from filterpy.kalman import JulierSigmaPoints, UnscentedKalmanFilter, ExtendedKalmanFilter
 
@@ -45,7 +45,7 @@ class KFbelief(object):
         # Prediction
         state_new = np.matmul(self.A, self.state)
         cov_new = np.matmul(np.matmul(self.A, self.cov), self.A.T) +  self.W
-        if LA.det(cov_new) < 1e6:
+        if True: # LA.det(cov_new) < 1e6:
             self.cov = cov_new
         self.state = np.clip(state_new, self.limit[0], self.limit[1])
 
@@ -72,7 +72,7 @@ class KFbelief(object):
         cov_new = np.matmul(C, self.cov)
         state_new = self.state +  np.matmul(K, innov)
 
-        if LA.det(cov_new) < 1e6:
+        if True: #LA.det(cov_new) < 1e6:
             self.cov = cov_new
         self.state = np.clip(state_new, self.limit[0], self.limit[1])
 
