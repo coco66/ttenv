@@ -223,8 +223,9 @@ class TargetTrackingEnv0(gym.Env):
                             init_pose['agent'][:2], init_pose['agent'][2],
                             np.pi, init_distance_min,
                             init_distance_max, not(target_direction))
-                        if blocked and is_target_valid:
-                            is_target_valid = map_utils.is_blocked(self.MAP, init_pose['agent'][:2], init_pose_target[:2])
+                        is_blocked = map_utils.is_blocked(self.MAP, init_pose['agent'][:2], init_pose_target[:2])
+                        if is_target_valid:
+                            is_target_valid = (blocked != is_blocked)
                         count += 1
                         if count > 100:
                             is_agent_valid = False
