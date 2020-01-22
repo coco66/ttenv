@@ -225,7 +225,7 @@ class TargetTrackingEnv0(gym.Env):
                             init_distance_max, not(target_direction))
                         is_blocked = map_utils.is_blocked(self.MAP, init_pose['agent'][:2], init_pose_target[:2])
                         if is_target_valid:
-                            is_target_valid = (blocked != is_blocked)
+                            is_target_valid = (blocked == is_blocked)
                         count += 1
                         if count > 100:
                             is_agent_valid = False
