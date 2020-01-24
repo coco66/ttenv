@@ -1,9 +1,9 @@
 import numpy as np
 import pickle
 import datetime, json, os, argparse, time
-import ttenv.infoplanner_python as infoplanner
 
 import ttenv
+import ttenv.infoplanner_python as infoplanner
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--seed', help='RNG seed', type=int, default=0)
@@ -16,6 +16,7 @@ parser.add_argument('--ros', type=int, default=0)
 parser.add_argument('--log_dir', type=str, default='.')
 parser.add_argument('--nb_targets', type=int, default=1)
 parser.add_argument('--repeat', type=int, default=1)
+parser.add_argument('--init_file_path', help='a path to a pickle file containing a set of initial positions', type=str, default=".")
 
 args = parser.parse_args()
 
@@ -50,6 +51,10 @@ if __name__ == "__main__":
 
     ep_nlogdetcov = ['Episode nLogDetCov']
     time_elapsed = ['Elapsed Time (sec)']
+    init_pose_list = []
+    if args.init_file_path != '.':
+        import pickle
+        init_pose_list = pickle.load(open(args.init_file_path, "rb"))
 
     for episode in range(args.repeat):
         planner = infoplanner.IGL.InfoPlanner()
@@ -61,7 +66,7 @@ if __name__ == "__main__":
         # Main Loop
         nlogdetcov = 0
         done = False
-        obs = env.reset()
+        obs = env.reset(init_pose_list=init_pose_list)
         t = 0 # step
         s_time = time.time()
         while(not done):

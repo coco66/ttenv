@@ -70,12 +70,11 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         t_init_b_sets = []
         init_pose = self.get_init_pose(init_random=init_random, **kwargs)
         a_init_igl = infoplanner.IGL.SE3Pose(init_pose['agent'], np.array([0, 0, 0, 1]))
-
         for i in range(self.num_targets):
             t_init_b_sets.append(init_pose['belief_targets'][i][:2])
             t_init_sets.append(init_pose['targets'][i][:2])
-            r, alpha, _ = util.xyg2polarb(t_init_b_sets[-1][:2],
-                                init_pose['agent'][:2], init_pose['agent'][2])
+            r, alpha, _ = util.xyg2polarb(np.array(t_init_b_sets[-1][:2]),
+                                np.array(init_pose['agent'][:2]), init_pose['agent'][2])
             logdetcov = np.log(LA.det(self.target_init_cov*np.eye(self.target_dim)))
             self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
 
