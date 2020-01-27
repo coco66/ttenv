@@ -73,7 +73,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
         reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
         self.state = []
         if obstacles_pt is None:

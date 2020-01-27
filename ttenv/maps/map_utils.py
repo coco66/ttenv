@@ -116,6 +116,7 @@ def is_blocked(map_obj, start_pos, end_pos):
   return False
 
 def get_cloest_obstacle(map_obj, odom, ang_res=0.05):
+def get_closest_obstacle(map_obj, odom, ang_res=0.05):
   """
     Return the closest obstacle/boundary cell
   """

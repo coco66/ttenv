@@ -246,7 +246,7 @@ class TargetTrackingEnv0(gym.Env):
     def step(self, action):
         action_vw = self.action_map[action]
         _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
@@ -344,7 +344,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
         reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed,
                                                             self.is_training)
         self.state = []
@@ -446,7 +446,7 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
     def step(self, action):
         action_vw = self.action_map[action]
         boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update()
@@ -538,7 +538,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
     def step(self, action):
         action_vw = self.action_map[action]
         boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update()
