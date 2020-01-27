@@ -115,7 +115,39 @@ def is_blocked(map_obj, start_pos, end_pos):
     i += 1
   return False
 
-def get_cloest_obstacle(map_obj, odom, ang_res=0.05):
+def get_front_obstacle(map_obj, odom, **kwargs):
+    ro_min_t = None
+    start_rc = map_obj.se2_to_cell(odom[:2])
+    end_pt_global_frame = coord_change2g(np.array([map_obj.r_max*np.cos(0.0), map_obj.r_max*np.sin(0.0)]), odom[-1]) + odom[:2]
+    if map_obj.map is None:
+      if not(in_bound(map_obj, end_pt_global_frame)):
+        end_rc = map_obj.se2_to_cell(end_pt_global_frame)
+        ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+        i = 0
+        while(i < ray_cells.shape[-1]):
+          pt = map_obj.cell_to_se2(ray_cells[:,i])
+          if not(in_bound(map_obj, pt)):
+            break
+          i += 1
+        if i < ray_cells.shape[-1]: # break!
+          ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
+
+    else:
+      end_rc = map_obj.se2_to_cell(end_pt_global_frame)
+      ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+      i = 0
+      while(i < ray_cells.shape[-1]): # break!
+        if is_collision_ray_cell(map_obj, ray_cells[:,i]):
+            break
+        i += 1
+      if i < ray_cells.shape[-1]:
+        ro_min_t = np.sqrt(np.sum(np.square(map_obj.cell_to_se2(ray_cells[:,i]) - odom[:2])))
+
+    if ro_min_t is None:
+        return None
+    else:
+        return ro_min_t, 0.0
+
 def get_closest_obstacle(map_obj, odom, ang_res=0.05):
   """
     Return the closest obstacle/boundary cell
