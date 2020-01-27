@@ -64,11 +64,11 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         self.belief_targets = BeliefWrapper(num_targets)
         self.targets = TargetWrapper(num_targets)
 
-    def reset(self, init_random=True, **kwargs):
+    def reset(self, **kwargs):
         self.state = []
         t_init_sets = []
         t_init_b_sets = []
-        init_pose = self.get_init_pose(init_random=init_random, **kwargs)
+        init_pose = self.get_init_pose(**kwargs)
         a_init_igl = infoplanner.IGL.SE3Pose(init_pose['agent'], np.array([0, 0, 0, 1]))
         for i in range(self.num_targets):
             t_init_b_sets.append(init_pose['belief_targets'][i][:2])

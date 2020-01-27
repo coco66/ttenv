@@ -205,9 +205,9 @@ class TargetTrackingEnv0(gym.Env):
                 init_pose['belief_targets'].append(init_pose_belief)
         return init_pose
 
-    def reset(self, init_random=True, **kwargs):
+    def reset(self, **kwargs):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random, **kwargs)
+        init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
@@ -310,9 +310,9 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                             collision_func=lambda x: map_utils.is_collision(self.MAP, x))
                             for _ in range(num_targets)]
 
-    def reset(self, init_random=True, **kwargs):
+    def reset(self, **kwargs):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random, **kwargs)
+        init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
@@ -383,26 +383,25 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
                                 limit=self.limit['target'],
                                 collision_func=lambda x: map_utils.is_collision(self.MAP, x),
                                 path=np.load(os.path.join(target_path_dir, "path_%d.npy"%(i+1)))) for i in range(self.num_targets)]
-    def reset(self, init_random=True, **kwargs):
+    def reset(self, **kwargs):
         self.state = []
-        if init_random:
-            if self.MAP.map is None:
-                a_init = self.agent_init_pos[:2]
-                self.agent.reset(self.agent_init_pos)
-            else:
-                isvalid = False
-                while(not isvalid):
-                    a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
-                    isvalid = not(map_utils.is_collision(self.MAP, a_init))
-                self.agent.reset([a_init[0], a_init[1], np.random.random()*2*np.pi-np.pi])
-            for i in range(self.num_targets):
-                t_init = np.load("path_sh_%d.npy"%(i+1))[0][:2]
-                self.belief_targets[i].reset(init_state=np.concatenate((t_init + METADATA['init_distance_belief'] * (np.random.rand(2)-0.5), np.zeros(2))), init_cov=self.target_init_cov)
-                self.targets[i].reset(np.concatenate((t_init, self.target_init_vel)))
-                r, alpha, _ = util.xyg2polarb(self.belief_targets[i].state[:2],
-                                     self.agent.state[:2], self.agent.state[2])
-                logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-                self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
+        if self.MAP.map is None:
+            a_init = self.agent_init_pos[:2]
+            self.agent.reset(self.agent_init_pos)
+        else:
+            isvalid = False
+            while(not isvalid):
+                a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
+                isvalid = not(map_utils.is_collision(self.MAP, a_init))
+            self.agent.reset([a_init[0], a_init[1], np.random.random()*2*np.pi-np.pi])
+        for i in range(self.num_targets):
+            t_init = np.load("path_sh_%d.npy"%(i+1))[0][:2]
+            self.belief_targets[i].reset(init_state=np.concatenate((t_init + METADATA['init_distance_belief'] * (np.random.rand(2)-0.5), np.zeros(2))), init_cov=self.target_init_cov)
+            self.targets[i].reset(np.concatenate((t_init, self.target_init_vel)))
+            r, alpha, _ = util.xyg2polarb(self.belief_targets[i].state[:2],
+                                 self.agent.state[:2], self.agent.state[2])
+            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
+            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
         return self.state
@@ -517,9 +516,9 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                             collision_func=lambda x: map_utils.is_collision(self.MAP, x))
                             for _ in range(num_targets)]
 
-    def reset(self,  init_random=True, **kwargs):
+    def reset(self, **kwargs):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random, **kwargs)
+        init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(

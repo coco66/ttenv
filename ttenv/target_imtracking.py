@@ -40,9 +40,9 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
             np.concatenate((np.ones(im_size*im_size,), self.limit['state'][1])),
             dtype=np.float32)
 
-    def reset(self, init_random=True, file_path="."):
+    def reset(self, **kwargs):
         self.state = []
-        init_pose = self.get_init_pose(init_random=init_random, file_path=file_path)
+        init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
