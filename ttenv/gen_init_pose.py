@@ -40,7 +40,7 @@ def main():
         timelimit_env = timelimit_env.env
     init_pose = []
     while(len(init_pose) < args.nb_init_pose): # test episode
-        obs, done = env.reset(**ttenv_eval_set[5]), False
+        obs, done = env.reset(), False
         if args.render:
             env.render()
         notes = input("%d, Pass? y/n"%len(init_pose))
