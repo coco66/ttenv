@@ -60,3 +60,15 @@ A search-based planning method used as a baseline in the above paper, Learning Q
 export PYTHONPATH="${PYTHONPATH}:YOUR-PATH-TO-INFOPLANNER/lib"
 python ttenv/infoplanner_python/run_anytime_planner.py --render 1
 ```
+
+## Citing
+If you use this repo in your research, you can cite it as follows:
+```bibtex
+@misc{ttenv,
+    author = {Heejin Jeong, Brent Schlotfeldt, Hamed Hassani, Manfred Morari, Daniel D. Lee, and George J. Pappas},
+    title = {Target tracking environments for Reinforcement Learning},
+    year = {2019},
+    publisher = {GitHub},
+    journal = {GitHub repository},
+    howpublished = {\url{https://github.com/coco66/ttenv.git}},
+}
