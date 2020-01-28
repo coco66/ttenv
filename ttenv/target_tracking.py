@@ -125,7 +125,7 @@ class TargetTrackingEnv0(gym.Env):
         max_ang_dist : the maximum angular distance (counter clockwise direction) from c_theta to a sample point.
         """
         if max_ang_dist < min_ang_dist:
-            max_ang_dist += np.pi
+            max_ang_dist += 2*np.pi
         rand_ang = util.wrap_around(np.random.rand() * \
                         (max_ang_dist - min_ang_dist) + min_ang_dist + c_theta)
 
