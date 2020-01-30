@@ -49,7 +49,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
                         init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
                         init_cov=self.target_init_cov)
             self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
-            r, alpha, _ = util.xyg2polarb(self.belief_targets[i].state[:2],
+            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                  self.agent.state[:2], self.agent.state[2])
             logdetcov = np.log(LA.det(self.belief_targets[i].cov))
             self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
@@ -79,9 +79,9 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
         for i in range(self.num_targets):
-            r_b, alpha_b, _ = util.xyg2polarb(self.belief_targets[i].state[:2],
+            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                  self.agent.state[:2], self.agent.state[2])
-            r_dot_b, alpha_dot_b = util.xyg2polarb_dot_2(
+            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
                                     self.belief_targets[i].state[:2],
                                     self.belief_targets[i].state[2:],
                                     self.agent.state[:2], self.agent.state[-1],
