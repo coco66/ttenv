@@ -16,21 +16,21 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
         else:
             T_steps = 100
     if env_name == 'TargetTracking-v0':
-        env0 = target_tracking.TargetTrackingEnv0(**kwargs)
+        env0 = target_tracking.TargetTrackingEnv0(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v1':
-        env0 = target_tracking.TargetTrackingEnv1(**kwargs)
+        env0 = target_tracking.TargetTrackingEnv1(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v2':
-        env0 = target_tracking.TargetTrackingEnv2(**kwargs)
+        env0 = target_tracking.TargetTrackingEnv2(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v3':
-        env0 = target_tracking.TargetTrackingEnv3(**kwargs)
+        env0 = target_tracking.TargetTrackingEnv3(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v4':
-        env0 = target_tracking.TargetTrackingEnv4(**kwargs)
+        env0 = target_tracking.TargetTrackingEnv4(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5':
         from ttenv.target_imtracking import TargetTrackingEnv5
-        env0 = TargetTrackingEnv5(**kwargs)
+        env0 = TargetTrackingEnv5(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
-        env0 = TargetTrackingInfoPlanner1(**kwargs)
+        env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
     else:
         raise ValueError('No such environment exists.')
 
