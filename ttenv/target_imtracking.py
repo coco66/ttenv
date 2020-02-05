@@ -56,7 +56,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.local_map, self.local_mapmin_g = map_utils.local_map(self.MAP, self.im_size, self.agent.state)
+        self.local_map, self.local_mapmin_g, _ = map_utils.local_map(self.MAP, self.im_size, self.agent.state)
         return np.concatenate((self.local_map.flatten(), self.state))
 
     def step(self, action):
@@ -90,5 +90,80 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
                 np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        self.local_map, self.local_mapmin_g = map_utils.local_map(self.MAP, self.im_size, self.agent.state)
+        self.local_map, self.local_mapmin_g, _ = map_utils.local_map(self.MAP, self.im_size, self.agent.state)
         return np.concatenate((self.local_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+class TargetTrackingEnv6(TargetTrackingEnv5):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True,
+                                        known_noise=True, im_size=50, **kwargs):
+        TargetTrackingEnv5.__init__(self, num_targets=num_targets,
+            map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
+        self.id = 'TargetTracking-v6'
+        self.visit_freq_map = np.zeros(self.MAP.mapdim)
+        self.visit_discount_factor = 0.95
+        self.observation_space = spaces.Box(np.concatenate((
+            np.zeros(2*im_size*im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(2*im_size*im_size,), self.limit['state'][1])),
+            dtype=np.float32)
+
+    def reset(self, **kwargs):
+        self.state = []
+        init_pose = self.get_init_pose(**kwargs)
+        self.agent.reset(init_pose['agent'])
+        for i in range(self.num_targets):
+            self.belief_targets[i].reset(
+                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
+                        init_cov=self.target_init_cov)
+            self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
+            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
+                                 self.agent.state[:2], self.agent.state[2])
+            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
+            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
+
+        self.state.extend([self.sensor_r, np.pi])
+        self.state = np.array(self.state)
+        self.local_map, self.local_mapmin_g, self.local_visit_freq_map = map_utils.local_map(
+                        self.MAP, self.im_size, self.agent.state, self.visit_freq_map)
+        agent_cell = self.MAP.se2_to_cell(self.agent.state)
+        self.visit_freq_map[agent_cell[0], agent_cell[1]] = 1.0
+        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state))
+
+    def step(self, action):
+        action_vw = self.action_map[action]
+        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+
+        # Visit frequency map update
+        self.visit_freq_map *= self.visit_discount_factor
+        agent_cell = self.MAP.se2_to_cell(self.agent.state)
+        self.visit_freq_map[agent_cell[0], agent_cell[1]] = 1.0
+
+        observed = []
+        for i in range(self.num_targets):
+            self.targets[i].update(self.agent.state[:2])
+            # Observe
+            obs = self.observation(self.targets[i])
+            observed.append(obs[0])
+            self.belief_targets[i].predict() # Belief state at t+1
+            if obs[0]: # if observed, update the target belief.
+                self.belief_targets[i].update(obs[1], self.agent.state)
+
+        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
+        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        self.state = []
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+        for i in range(self.num_targets):
+            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
+                                 self.agent.state[:2], self.agent.state[2])
+            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
+                                    self.belief_targets[i].state[:2],
+                                    self.belief_targets[i].state[2:],
+                                    self.agent.state[:2], self.agent.state[-1],
+                                    action_vw[0], action_vw[1])
+            self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
+                np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
+        self.state.extend([obstacles_pt[0], obstacles_pt[1]])
+        self.state = np.array(self.state)
+        self.local_map, self.local_mapmin_g, self.local_visit_freq_map = map_utils.local_map(
+                                    self.MAP, self.im_size, self.agent.state, self.visit_freq_map)
+        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}

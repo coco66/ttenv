@@ -102,6 +102,7 @@ def is_collision_ray_cell(map_obj, cell):
     return True
   else:
     return False
+
 def is_blocked(map_obj, start_pos, end_pos):
   if map_obj.map is None:
     return False
@@ -213,7 +214,7 @@ def in_bound(map_obj, pos):
     or (pos[1] < map_obj.mapmin[1] + map_obj.margin2wall)
     or (pos[1] > map_obj.mapmax[1] - map_obj.margin2wall))
 
-def local_map(map_obj, im_size, odom):
+def local_map(map_obj, im_size, odom, visit_freq_map=None):
   """
   im_size : the number of rows/columns
   """
@@ -222,17 +223,25 @@ def local_map(map_obj, im_size, odom):
 
   local_map = np.zeros((im_size, im_size))
   local_mapmin = np.array([-im_size/2*map_obj.mapres[0], 0.0])
+  local_visit_freq_map = np.zeros((im_size, im_size)) if visit_freq_map is not None else None
   for r in range(im_size):
     for c in range(im_size):
       xy_local = cell_to_se2([r,c], local_mapmin, map_obj.mapres)
       xy_global = np.matmul(R, xy_local) + odom[:2]
-      local_map[c,r] = int(is_collision_ray_cell(map_obj, map_obj.se2_to_cell(xy_global)))
+      cell_global = map_obj.se2_to_cell(xy_global)
+      local_map[c,r] = int(is_collision_ray_cell(map_obj, cell_global))
+      if visit_freq_map is not None:
+          # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
+        local_visit_freq_map[c,r] = local_map[c,r]
+        if in_bound(map_obj, xy_global):
+          local_visit_freq_map[c,r] += visit_freq_map[cell_global[0], cell_global[1]]
+
   local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
   # indvec = np.reshape([[[r,c] for r in range(im_size)] for c in range(im_size)], (-1,2))
   # xy_local = cell_to_se2_batch(indvec, local_mapmin, map_obj.mapres)
   # xy_global = np.add(np.matmul(R, xy_local.T).T odom[:2])
 
-  return local_map, local_mapmin_g
+  return local_map, local_mapmin_g, local_visit_freq_map
 
 def se2_to_cell(pos, mapmin, mapres):
   pos = pos[:2]
