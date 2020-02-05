@@ -101,15 +101,15 @@ class TargetTrackingEnv0(gym.Env):
         self.targetA = np.eye(self.target_dim)
         # Build a robot
         self.agent = AgentSE2(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x))
+                            collision_func=lambda x: self.MAP.is_collision(x))
         # Build a target
         self.targets = [AgentDoubleInt2D(dim=self.target_dim, sampling_period=self.sampling_period,
                             limit=self.limit['target'],
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x),
+                            collision_func=lambda x: self.MAP.is_collision(x),
                             A=self.targetA, W=self.target_true_noise_sd) for _ in range(num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x))
+                            collision_func=lambda x: self.MAP.is_collision(x))
                                 for _ in range(num_targets)]
         self.reset_num = 0
 
@@ -131,7 +131,7 @@ class TargetTrackingEnv0(gym.Env):
 
         rand_r = np.random.rand() * (max_lin_dist - min_lin_dist) + min_lin_dist
         rand_xy = np.array([rand_r*np.cos(rand_ang), rand_r*np.sin(rand_ang)]) + o_xy
-        is_valid = not(map_utils.is_collision(self.MAP, rand_xy))
+        is_valid = not(self.MAP.is_collision(rand_xy))
         return is_valid, [rand_xy[0], rand_xy[1], rand_ang]
 
     def get_init_pose(self, init_pose_list=[], **kwargs):
@@ -172,7 +172,7 @@ class TargetTrackingEnv0(gym.Env):
             else:
                 while(not is_agent_valid):
                     a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
-                    is_agent_valid = not(map_utils.is_collision(self.MAP, a_init))
+                    is_agent_valid = not(self.MAP.is_collision(a_init))
 
             init_pose['agent'] = [a_init[0], a_init[1], np.random.random() * 2 * np.pi - np.pi]
             init_pose['targets'], init_pose['belief_targets'] = [], []
@@ -183,7 +183,7 @@ class TargetTrackingEnv0(gym.Env):
                         init_pose['agent'][:2], init_pose['agent'][2],
                         lin_dist_range[0], lin_dist_range[1],
                         ang_dist_range_target[0], ang_dist_range_target[1])
-                    is_blocked = map_utils.is_blocked(self.MAP, init_pose['agent'][:2], init_pose_target[:2])
+                    is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_target[:2])
                     if is_target_valid:
                         is_target_valid = (blocked == is_blocked)
                     count += 1
@@ -213,7 +213,7 @@ class TargetTrackingEnv0(gym.Env):
             self.belief_targets[i].reset(
                         init_state=init_pose['belief_targets'][i][:self.target_dim],
                         init_cov=self.target_init_cov)
-            self.targets[i].reset(init_pose['targets'][i][:self.target_dim])
+            self.targets[i].reset(np.array(init_pose['targets'][i][:self.target_dim]))
             r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
                                                 theta_base=self.agent.state[2])
@@ -230,7 +230,7 @@ class TargetTrackingEnv0(gym.Env):
                                             theta_base=self.agent.state[2])
         observed = (r <= self.sensor_r) \
                     & (abs(alpha) <= self.fov/2/180*np.pi) \
-                    & (not(map_utils.is_blocked(self.MAP, self.agent.state, target.state)))
+                    & (not(self.MAP.is_blocked(self.agent.state, target.state)))
         z = None
         if observed:
             z = np.array([r, alpha])
@@ -248,7 +248,7 @@ class TargetTrackingEnv0(gym.Env):
     def step(self, action):
         action_vw = self.action_map[action]
         _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
@@ -303,14 +303,14 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                         np.concatenate((self.sampling_period/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
         # Build a robot
         self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
-                            lambda x: map_utils.is_collision(self.MAP, x))
+                            lambda x: self.MAP.is_collision(x))
         # Build a target
         self.targets = [AgentDoubleInt2D(self.target_dim, self.sampling_period, self.limit['target'],
-                            lambda x: map_utils.is_collision(self.MAP, x),
+                            lambda x: self.MAP.is_collision(x),
                             W=self.target_true_noise_sd, A=self.targetA) for _ in range(num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x))
+                            collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(num_targets)]
 
     def reset(self, **kwargs):
@@ -348,7 +348,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed,
                                                             self.is_training)
         self.state = []
@@ -386,7 +386,7 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
         self.id = 'TargetTracking-v2'
         self.targets = [Agent2DFixedPath(dim=self.target_dim, sampling_period=self.sampling_period,
                                 limit=self.limit['target'],
-                                collision_func=lambda x: map_utils.is_collision(self.MAP, x),
+                                collision_func=lambda x: self.MAP.is_collision(x),
                                 path=np.load(os.path.join(target_path_dir, "path_%d.npy"%(i+1)))) for i in range(self.num_targets)]
     def reset(self, **kwargs):
         self.state = []
@@ -397,7 +397,7 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
             isvalid = False
             while(not isvalid):
                 a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
-                isvalid = not(map_utils.is_collision(self.MAP, a_init))
+                isvalid = not(self.MAP.is_collision(a_init))
             self.agent.reset([a_init[0], a_init[1], np.random.random()*2*np.pi-np.pi])
         for i in range(self.num_targets):
             t_init = np.load("path_sh_%d.npy"%(i+1))[0][:2]
@@ -435,10 +435,10 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
                                 self.sampling_period * np.eye(self.target_dim)
         # Build a robot
         self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
-                            lambda x: map_utils.is_collision(self.MAP, x))
+                            lambda x: self.MAP.is_collision(x))
         # Build a target
         self.targets = [AgentSE2(self.target_dim, self.sampling_period, self.limit['target'],
-                            lambda x: map_utils.is_collision(self.MAP, x),
+                            lambda x: self.MAP.is_collision(x),
                             policy=SinePolicy(0.1, 0.5, 5.0, self.sampling_period)) for _ in range(num_targets)]
         # SinePolicy(0.5, 0.5, 2.0, self.sampling_period)
         # CirclePolicy(self.sampling_period, self.MAP.origin, 3.0)
@@ -446,13 +446,13 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
 
         self.belief_targets = [UKFbelief(dim=self.target_dim, limit=self.limit['target'], fx=SE2Dynamics,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x))
+                            collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(num_targets)]
 
     def step(self, action):
         action_vw = self.action_map[action]
         boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update()
@@ -509,10 +509,10 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                                   self.sampling_period * np.eye(self.target_dim)
         # Build a robot
         self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
-                            lambda x: map_utils.is_collision(self.MAP, x))
+                            lambda x: self.MAP.is_collision(x))
         # Build a target
         self.targets = [AgentSE2(self.target_dim, self.sampling_period, self.limit['target'],
-                            lambda x: map_utils.is_collision(self.MAP, x),
+                            lambda x: self.MAP.is_collision(x),
                             policy=ConstantPolicy(self.target_noise_cov[3:, 3:])) for _ in range(num_targets)]
         # SinePolicy(0.5, 0.5, 2.0, self.sampling_period)
         # CirclePolicy(self.sampling_period, self.MAP.origin, 3.0)
@@ -520,7 +520,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
 
         self.belief_targets = [UKFbelief(dim=self.target_dim, limit=self.limit['target'], fx=SE2DynamicsVel,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x))
+                            collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(num_targets)]
 
     def reset(self, **kwargs):
@@ -546,7 +546,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
     def step(self, action):
         action_vw = self.action_map[action]
         boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = map_utils.get_closest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update()

@@ -34,6 +34,14 @@ class GridMap(object):
         self.origin = map_config['origin']
         self.r_max = r_max
         self.fov = fov
+        self.visit_freq_map = None
+
+    def use_visit_freq_map(self, discount):
+        self.visit_freq_map = np.zeros(self.mapdim)
+        self.visit_discount_factor = discount
+
+    def decay_visit_freq_map(self):
+        self.visit_freq_map *= self.visit_discount_factor
 
     def se2_to_cell(self, pos):
         pos = pos[:2]
@@ -42,6 +50,161 @@ class GridMap(object):
 
     def cell_to_se2(self, cell_idx):
         return ( np.array(cell_idx) + 0.5 ) * self.mapres + self.mapmin
+
+    def is_collision_ray_cell(self, cell):
+        """
+        cell : cell r, c index from left bottom.
+        """
+        idx = cell[0] + self.mapdim[0] * cell[1]
+        if (cell[0] < 0) or (cell[1] < 0) or (cell[0] >= self.mapdim[0]) or (cell[1] >= self.mapdim[1]):
+            return True
+        elif (self.map is not None) and self.map_linear[idx] == 1:
+            return True
+        else:
+            return False
+
+    def is_collision(self, pos):
+        if not(self.in_bound(pos)):
+            return True
+        else:
+            if self.map is not None:
+                n = np.ceil(self.margin2wall/self.mapres).astype(np.int16)
+                cell = np.minimum([self.mapdim[0]-1,self.mapdim[1]-1] , self.se2_to_cell(pos))
+                for r_add in np.arange(-n[1],n[1],1):
+                    for c_add in np.arange(-n[0],n[0],1):
+                        x_c = np.clip(cell[0]+r_add, 0, self.mapdim[0]-1).astype(np.int16)
+                        y_c = np.clip(cell[1]+c_add,0,self.mapdim[1]-1).astype(np.int16)
+                        idx = x_c + self.mapdim[0] * y_c
+                        if self.map_linear[idx] == 1:
+                            return True
+        return False
+
+    def in_bound(self, pos):
+        return not((pos[0] < self.mapmin[0] + self.margin2wall)
+            or (pos[0] > self.mapmax[0] - self.margin2wall)
+            or (pos[1] < self.mapmin[1] + self.margin2wall)
+            or (pos[1] > self.mapmax[1] - self.margin2wall))
+
+    def is_blocked(self, start_pos, end_pos):
+        if self.map is None:
+            return False
+        start_rc = self.se2_to_cell(start_pos)
+        end_rc = self.se2_to_cell(end_pos)
+        ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+        i = 0
+        while(i < ray_cells.shape[-1]):
+            if self.is_collision_ray_cell(ray_cells[:,i]):
+                return True
+            i += 1
+        return False
+
+    def get_front_obstacle(self, odom, **kwargs):
+        """
+        Return radial and angular distances of the front obstacle/boundary cell
+        """
+        ro_min_t = None
+        start_rc = self.se2_to_cell(odom[:2])
+        end_pt_global_frame = coord_change2g(np.array([self.r_max*np.cos(0.0), self.r_max*np.sin(0.0)]), odom[-1]) + odom[:2]
+        if self.map is None:
+            if not(self.in_bound(end_pt_global_frame)):
+                end_rc = self.se2_to_cell(end_pt_global_frame)
+                ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+                i = 0
+                while(i < ray_cells.shape[-1]):
+                    pt = self.cell_to_se2(ray_cells[:,i])
+                    if not(self.in_bound(pt)):
+                        break
+                    i += 1
+                if i < ray_cells.shape[-1]: # break!
+                    ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
+        else:
+            end_rc = self.se2_to_cell(end_pt_global_frame)
+            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+            i = 0
+            while(i < ray_cells.shape[-1]): # break!
+                if self.is_collision_ray_cell(ray_cells[:,i]):
+                    break
+                i += 1
+            if i < ray_cells.shape[-1]:
+                ro_min_t = np.sqrt(np.sum(np.square(self.cell_to_se2(ray_cells[:,i]) - odom[:2])))
+        if ro_min_t is None:
+            return None
+        else:
+            return ro_min_t, 0.0
+
+    def get_closest_obstacle(self, odom, ang_res=0.05):
+        """
+        Return radial and angular distances of the closest obstacle/boundary cell
+        """
+        ang_grid = np.arange(-.5*self.fov, .5*self.fov, ang_res)
+        closest_obstacle = (self.r_max, 0.0)
+        start_rc = self.se2_to_cell(odom[:2])
+        for ang in ang_grid:
+            end_pt_global_frame = coord_change2g(np.array(
+                            [self.r_max*np.cos(ang), self.r_max*np.sin(ang)]),
+                            odom[-1]) + odom[:2]
+            if self.map is None:
+                # if not(self.in_bound(end_pt_global_frame)):
+                end_rc = self.se2_to_cell(end_pt_global_frame)
+                ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+                i = 0
+                while(i < ray_cells.shape[-1]):
+                    pt = self.cell_to_se2(ray_cells[:,i])
+                    if not(self.in_bound(pt)):
+                        break
+                    if self.visit_freq_map is not None:
+                        self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
+                    i += 1
+                if i < ray_cells.shape[-1]: # break!
+                    ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
+                    if ro_min_t < closest_obstacle[0]:
+                        closest_obstacle = (ro_min_t, ang)
+            else:
+                end_rc = self.se2_to_cell(end_pt_global_frame)
+                ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+                i = 0
+                while(i < ray_cells.shape[-1]): # break!
+                    if self.is_collision_ray_cell(ray_cells[:,i]):
+                        break
+                    if self.visit_freq_map is not None:
+                        self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
+                    i += 1
+                if i < ray_cells.shape[-1]:
+                    ro_min_t = np.sqrt(np.sum(np.square(self.cell_to_se2(ray_cells[:,i]) - odom[:2])))
+                    if ro_min_t < closest_obstacle[0]:
+                        closest_obstacle = (ro_min_t, ang)
+        if closest_obstacle[0] == self.r_max:
+            return None
+        else:
+            return closest_obstacle
+
+    def local_map(self, im_size, odom):
+        """
+        im_size : the number of rows/columns
+        """
+        R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
+                  [np.sin(odom[2] - np.pi/2), np.cos(odom[2] - np.pi/2)]])
+
+        local_map = np.zeros((im_size, im_size))
+        local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
+        local_visit_freq_map = np.zeros((im_size, im_size)) if self.visit_freq_map is not None else None
+        for r in range(im_size):
+            for c in range(im_size):
+                xy_local = cell_to_se2([r,c], local_mapmin, self.mapres)
+                xy_global = np.matmul(R, xy_local) + odom[:2]
+                cell_global = self.se2_to_cell(xy_global)
+                local_map[c,r] = int(self.is_collision_ray_cell(cell_global))
+                if self.visit_freq_map is not None:
+                    # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
+                    local_visit_freq_map[c,r] = local_map[c,r]
+                    if self.in_bound(xy_global):
+                        local_visit_freq_map[c,r] += self.visit_freq_map[cell_global[0], cell_global[1]]
+
+        local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
+        # indvec = np.reshape([[[r,c] for r in range(im_size)] for c in range(im_size)], (-1,2))
+        # xy_local = cell_to_se2_batch(indvec, local_mapmin, self.mapres)
+        # xy_global = np.add(np.matmul(R, xy_local.T).T odom[:2])
+        return local_map, local_mapmin_g, local_visit_freq_map
 
 def bresenham2D(sx, sy, ex, ey):
     """
@@ -66,7 +229,7 @@ def bresenham2D(sx, sy, ex, ey):
         q = np.zeros((dx+1,1))
     else:
         q = np.append(0,np.greater_equal(np.diff(np.mod(np.arange( np.floor(dx/2), -dy*dx+np.floor(dx/2)-1,-dy),dx)),0))
-    
+
     if steep:
         if sy <= ey:
             y = np.arange(sy,ey+1)
@@ -91,154 +254,6 @@ def coord_change2g(vec, ang):
     assert(len(vec) == 2)
     # R * v
     return np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])@vec
-
-def is_collision_ray_cell(map_obj, cell):
-    """
-    cell : cell r, c index from left bottom.
-    """
-    idx = cell[0] + map_obj.mapdim[0] * cell[1]
-    if (cell[0] < 0) or (cell[1] < 0) or (cell[0] >= map_obj.mapdim[0]) or (cell[1] >= map_obj.mapdim[1]):
-        return True
-    elif (map_obj.map is not None) and map_obj.map_linear[idx] == 1:
-        return True
-    else:
-        return False
-
-def is_blocked(map_obj, start_pos, end_pos):
-    if map_obj.map is None:
-        return False
-    start_rc = map_obj.se2_to_cell(start_pos)
-    end_rc = map_obj.se2_to_cell(end_pos)
-    ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-    i = 0
-    while(i < ray_cells.shape[-1]):
-        if is_collision_ray_cell(map_obj, ray_cells[:,i]):
-            return True
-        i += 1
-    return False
-
-def get_front_obstacle(map_obj, odom, **kwargs):
-    ro_min_t = None
-    start_rc = map_obj.se2_to_cell(odom[:2])
-    end_pt_global_frame = coord_change2g(np.array([map_obj.r_max*np.cos(0.0), map_obj.r_max*np.sin(0.0)]), odom[-1]) + odom[:2]
-    if map_obj.map is None:
-        if not(in_bound(map_obj, end_pt_global_frame)):
-            end_rc = map_obj.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-            i = 0
-            while(i < ray_cells.shape[-1]):
-                pt = map_obj.cell_to_se2(ray_cells[:,i])
-                if not(in_bound(map_obj, pt)):
-                    break
-                i += 1
-            if i < ray_cells.shape[-1]: # break!
-                ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
-    else:
-        end_rc = map_obj.se2_to_cell(end_pt_global_frame)
-        ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-        i = 0
-        while(i < ray_cells.shape[-1]): # break!
-            if is_collision_ray_cell(map_obj, ray_cells[:,i]):
-                break
-            i += 1
-        if i < ray_cells.shape[-1]:
-            ro_min_t = np.sqrt(np.sum(np.square(map_obj.cell_to_se2(ray_cells[:,i]) - odom[:2])))
-    if ro_min_t is None:
-        return None
-    else:
-        return ro_min_t, 0.0
-
-def get_closest_obstacle(map_obj, odom, ang_res=0.05):
-    """
-    Return the closest obstacle/boundary cell
-    """
-    ang_grid = np.arange(-.5*map_obj.fov, .5*map_obj.fov, ang_res)
-    closest_obstacle = (map_obj.r_max, 0.0)
-    start_rc = map_obj.se2_to_cell(odom[:2])
-    for ang in ang_grid:
-        end_pt_global_frame = coord_change2g(np.array([map_obj.r_max*np.cos(ang), map_obj.r_max*np.sin(ang)]), odom[-1]) + odom[:2]
-
-    if map_obj.map is None:
-        if not(in_bound(map_obj, end_pt_global_frame)):
-            end_rc = map_obj.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-            i = 0
-            while(i < ray_cells.shape[-1]):
-                pt = map_obj.cell_to_se2(ray_cells[:,i])
-                if not(in_bound(map_obj, pt)):
-                    break
-                i += 1
-            if i < ray_cells.shape[-1]: # break!
-                ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
-                if ro_min_t < closest_obstacle[0]:
-                    closest_obstacle = (ro_min_t, ang)
-
-    else:
-        end_rc = map_obj.se2_to_cell(end_pt_global_frame)
-        ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-        i = 0
-        while(i < ray_cells.shape[-1]): # break!
-            if is_collision_ray_cell(map_obj, ray_cells[:,i]):
-                break
-            i += 1
-        if i < ray_cells.shape[-1]:
-            ro_min_t = np.sqrt(np.sum(np.square(map_obj.cell_to_se2(ray_cells[:,i]) - odom[:2])))
-            if ro_min_t < closest_obstacle[0]:
-                closest_obstacle = (ro_min_t, ang)
-    if closest_obstacle[0] == map_obj.r_max:
-        return None
-    else:
-        return closest_obstacle
-
-def is_collision(map_obj, pos):
-    if not(in_bound(map_obj, pos)):
-        return True
-    else:
-        if map_obj.map is not None:
-            n = np.ceil(map_obj.margin2wall/map_obj.mapres).astype(np.int16)
-            cell = np.minimum([map_obj.mapdim[0]-1,map_obj.mapdim[1]-1] , map_obj.se2_to_cell(pos))
-            for r_add in np.arange(-n[1],n[1],1):
-                for c_add in np.arange(-n[0],n[0],1):
-                    x_c = np.clip(cell[0]+r_add, 0, map_obj.mapdim[0]-1).astype(np.int16)
-                    y_c = np.clip(cell[1]+c_add,0,map_obj.mapdim[1]-1).astype(np.int16)
-                    idx = x_c + map_obj.mapdim[0] * y_c
-                    if map_obj.map_linear[idx] == 1:
-                        return True
-    return False
-
-def in_bound(map_obj, pos):
-    return not((pos[0] < map_obj.mapmin[0] + map_obj.margin2wall)
-        or (pos[0] > map_obj.mapmax[0] - map_obj.margin2wall)
-        or (pos[1] < map_obj.mapmin[1] + map_obj.margin2wall)
-        or (pos[1] > map_obj.mapmax[1] - map_obj.margin2wall))
-
-def local_map(map_obj, im_size, odom, visit_freq_map=None):
-    """
-    im_size : the number of rows/columns
-    """
-    R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
-              [np.sin(odom[2] - np.pi/2), np.cos(odom[2] - np.pi/2)]])
-
-    local_map = np.zeros((im_size, im_size))
-    local_mapmin = np.array([-im_size/2*map_obj.mapres[0], 0.0])
-    local_visit_freq_map = np.zeros((im_size, im_size)) if visit_freq_map is not None else None
-    for r in range(im_size):
-        for c in range(im_size):
-            xy_local = cell_to_se2([r,c], local_mapmin, map_obj.mapres)
-            xy_global = np.matmul(R, xy_local) + odom[:2]
-            cell_global = map_obj.se2_to_cell(xy_global)
-            local_map[c,r] = int(is_collision_ray_cell(map_obj, cell_global))
-            if visit_freq_map is not None:
-                # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
-                local_visit_freq_map[c,r] = local_map[c,r]
-                if in_bound(map_obj, xy_global):
-                    local_visit_freq_map[c,r] += visit_freq_map[cell_global[0], cell_global[1]]
-
-    local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
-    # indvec = np.reshape([[[r,c] for r in range(im_size)] for c in range(im_size)], (-1,2))
-    # xy_local = cell_to_se2_batch(indvec, local_mapmin, map_obj.mapres)
-    # xy_global = np.add(np.matmul(R, xy_local.T).T odom[:2])
-    return local_map, local_mapmin_g, local_visit_freq_map
 
 def se2_to_cell(pos, mapmin, mapres):
     pos = pos[:2]
