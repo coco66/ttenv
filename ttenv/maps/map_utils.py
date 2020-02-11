@@ -36,7 +36,7 @@ class GridMap(object):
         self.fov = fov
         self.visit_freq_map = None
 
-    def use_visit_freq_map(self, discount):
+    def reset_visit_freq_map(self, discount):
         self.visit_freq_map = np.zeros(self.mapdim)
         self.visit_discount_factor = discount
 
@@ -196,8 +196,9 @@ class GridMap(object):
                 local_map[c,r] = int(self.is_collision_ray_cell(cell_global))
                 if self.visit_freq_map is not None:
                     # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
-                    local_visit_freq_map[c,r] = local_map[c,r]
-                    if self.in_bound(xy_global):
+                    if local_map[c,r] == 1 :
+                        local_visit_freq_map[c,r] = 1.0
+                    elif self.in_bound(xy_global):
                         local_visit_freq_map[c,r] += self.visit_freq_map[cell_global[0], cell_global[1]]
 
         local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]

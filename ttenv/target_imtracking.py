@@ -98,7 +98,6 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v6'
-        self.MAP.use_visit_freq_map(discount=0.95)
         self.observation_space = spaces.Box(np.concatenate((
             np.zeros(2*im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(2*im_size*im_size,), self.limit['state'][1])),
@@ -120,6 +119,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
+        self.MAP.reset_visit_freq_map(discount=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                                                                 self.im_size, self.agent.state)
@@ -128,7 +128,6 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
     def step(self, action):
         action_vw = self.action_map[action]
         _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
@@ -158,7 +157,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
-                                                            self.im_size, self.agent.state)
+                                                             self.im_size, self.agent.state)
         return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 class TargetTrackingEnv7(TargetTrackingEnv5):
@@ -167,7 +166,6 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v7'
-        self.MAP.use_visit_freq_map(discount=0.95)
         new_state_limit_low, new_state_limit_high = [], []
         for i in range(num_targets):
             new_state_limit_low.extend(np.append(self.limit['state'][0][i*6:(i+1)*6], 0.0))
@@ -198,6 +196,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
+        self.MAP.reset_visit_freq_map(discount=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                                                                 self.im_size, self.agent.state)
