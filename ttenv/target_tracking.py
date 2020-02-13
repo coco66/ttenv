@@ -242,12 +242,12 @@ class TargetTrackingEnv0(gym.Env):
                                 [0.0, self.sensor_b_sd * self.sensor_b_sd]])
         return obs_noise_cov
 
-    def get_reward(self, obstacles_pt, observed, is_training=True):
-        return reward_fun(self.belief_targets, obstacles_pt, observed, is_training)
+    def get_reward(self, is_training=True, **kwargs):
+        return reward_fun_1(self.belief_targets, is_training=is_training, **kwargs)
 
     def step(self, action):
         action_vw = self.action_map[action]
-        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
@@ -259,7 +259,8 @@ class TargetTrackingEnv0(gym.Env):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
+                                                                is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -315,6 +316,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
 
     def reset(self, **kwargs):
         self.state = []
+        self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
@@ -335,7 +337,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
     def step(self, action):
         # The agent performs an action (t -> t+1)
         action_vw = self.action_map[action]
-        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        self.num_collisions += int(is_col)
 
         # The targets move (t -> t+1) and are observed by the agent.
         observed = []
@@ -349,8 +352,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed,
-                                                            self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
+                                                                is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -451,7 +454,7 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
 
     def step(self, action):
         action_vw = self.action_map[action]
-        boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
@@ -465,7 +468,7 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
                                         np.array([np.random.random(),
                                         np.pi*np.random.random()-0.5*np.pi]))
 
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -545,7 +548,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
 
     def step(self, action):
         action_vw = self.action_map[action]
-        boundary_penalty = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         observed = []
         for i in range(self.num_targets):
@@ -557,7 +560,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
             self.belief_targets[i].update(obs[0], obs[1], self.agent.state,
              np.array([np.random.random(), np.pi*np.random.random()-0.5*np.pi]))
 
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -605,12 +608,24 @@ def reward_fun_0(belief_targets, obstacles_pt, observed, is_training=True,
         mean_nlogdetcov = -np.mean(logdetcov)
     return reward, False, mean_nlogdetcov
 
-def reward_fun(belief_targets, obstacles_pt, observed, is_training=True,
-        c_mean=0.1):
+def reward_fun(belief_targets, obstacles_pt, is_training=True, c_mean=0.1):
 
     detcov = [LA.det(b_target.cov) for b_target in belief_targets]
     r_detcov_mean = - np.mean(np.log(detcov))
     reward = c_mean * r_detcov_mean
+
+    mean_nlogdetcov = None
+    if not(is_training):
+        logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
+        mean_nlogdetcov = -np.mean(logdetcov)
+    return reward, False, mean_nlogdetcov
+
+def reward_fun_1(belief_targets, is_col, is_training=True, c_mean=0.1, c_penalty=1.0):
+    detcov = [LA.det(b_target.cov) for b_target in belief_targets]
+    r_detcov_mean = - np.mean(np.log(detcov))
+    reward = c_mean * r_detcov_mean
+    if is_col :
+        reward = min(0.0, reward) - c_penalty * 1.0
 
     mean_nlogdetcov = None
     if not(is_training):

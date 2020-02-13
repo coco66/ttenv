@@ -41,6 +41,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
     def reset(self, **kwargs):
         self.state = []
+        self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
@@ -60,8 +61,8 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
     def step(self, action):
         action_vw = self.action_map[action]
-        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        self.num_collisions += int(is_col)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
@@ -73,7 +74,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -105,6 +106,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
     def reset(self, **kwargs):
         self.state = []
+        self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
@@ -127,7 +129,8 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
     def step(self, action):
         action_vw = self.action_map[action]
-        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        self.num_collisions += int(is_col)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
@@ -140,7 +143,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.MAP.decay_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state) # visit freq map is updated as well.
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
