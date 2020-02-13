@@ -1,5 +1,6 @@
 from gym import wrappers
 import ttenv.target_tracking
+import ttenv.target_imtracking
 
 def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
                                         T_steps=None, num_targets=1, **kwargs):
@@ -26,14 +27,14 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v4':
         env0 = target_tracking.TargetTrackingEnv4(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5':
-        from ttenv.target_imtracking import TargetTrackingEnv5
-        env0 = TargetTrackingEnv5(num_targets=num_targets, **kwargs)
+        local_view = True
+        env0 = target_imtracking.TargetTrackingEnv5(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v6':
-        from ttenv.target_imtracking import TargetTrackingEnv6
-        env0 = TargetTrackingEnv6(num_targets=num_targets, **kwargs)
+        local_view = True
+        env0 = target_imtracking.TargetTrackingEnv6(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v7':
-        from ttenv.target_imtracking import TargetTrackingEnv7
-        env0 = TargetTrackingEnv7(num_targets=num_targets, **kwargs)
+        local_view = True
+        env0 = target_imtracking.TargetTrackingEnv7(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
@@ -46,7 +47,7 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
         env = Ros(env)
     if render:
         from ttenv.display_wrapper import Display2D
-        env = Display2D(env, figID=figID)
+        env = Display2D(env, figID=figID, local_view=local_view)
     if record:
         from ttenv.display_wrapper import Video2D
         env = Video2D(env, dirname = directory)

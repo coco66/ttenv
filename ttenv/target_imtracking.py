@@ -12,6 +12,13 @@ TargetTrackingEnv5 : Local Image-based Double Integrator Target model with KF be
     RL state: [local_map_image, [d, alpha, ddot, alphadot, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]]
     Target : Double Integrator model, [x,y,xdot,ydot]
     Belief Target : KF, Double Integrator model
+
+TargetTrackingEnv6 : Local visit frequency map is given to the agent as well as all the inputs of V5.
+    The covered area is same as the area presented in the local map.
+
+TargetTrackingEnv7 : Local map & Local visit frequency maps of outside the front range - left, right, front, back are given.
+    Therefore, the image input fed to the convolutional neural network has five depth.
+    This intend to use a smaller image size.
 """
 import gym
 from gym import spaces, logger
@@ -100,7 +107,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v6'
         self.observation_space = spaces.Box(np.concatenate((
-            np.zeros(2*im_size*im_size,), self.limit['state'][0])),
+            -np.ones(2*im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(2*im_size*im_size,), self.limit['state'][1])),
             dtype=np.float32)
 
@@ -124,8 +131,8 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
         self.MAP.reset_visit_freq_map(discount=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
-                                                                self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state))
+                            self.im_size, self.agent.state, get_visit_freq=True)
+        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten() - 1.0, self.state))
 
     def step(self, action):
         action_vw = self.action_map[action]
@@ -160,12 +167,12 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
-                                                             self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+                            self.im_size, self.agent.state, get_visit_freq=True)
+        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten() - 1.0, self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 class TargetTrackingEnv7(TargetTrackingEnv5):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
-                                        known_noise=True, im_size=50, **kwargs):
+                                        known_noise=True, im_size=28, **kwargs):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v7'
@@ -177,8 +184,8 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         new_state_limit_high = np.concatenate((new_state_limit_high, [self.sensor_r, np.pi]))
         self.limit['state'] = [new_state_limit_low, new_state_limit_high]
         self.observation_space = spaces.Box(np.concatenate((
-            np.zeros(2*im_size*im_size,), self.limit['state'][0])),
-            np.concatenate((np.ones(2*im_size*im_size,), self.limit['state'][1])),
+            -np.ones(5*im_size*im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
             dtype=np.float32)
 
     def reset(self, **kwargs):
@@ -201,13 +208,17 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         self.state = np.array(self.state)
         self.MAP.reset_visit_freq_map(discount=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
-                                                                self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state))
+        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
+                                                    self.im_size, self.agent.state)
+        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+                                                self.im_size, self.agent.state)
+        norm_local_map = (self.local_map.flatten() - 0.5) * 2
+        norm_local_visit_map = local_visit_maps.flatten() - 1.0
+        return np.concatenate((norm_local_map, norm_local_visit_map, self.state))
 
     def step(self, action):
         action_vw = self.action_map[action]
-        _ = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
 
         observed = []
         for i in range(self.num_targets):
@@ -221,7 +232,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
         self.MAP.decay_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state) # visit freq map is updated as well.
-        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -238,6 +249,10 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
                 np.log(LA.det(self.belief_targets[i].cov)), float(observed[i]), float(is_belief_blocked)])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
-                                                            self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.local_visit_freq_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
+                                                    self.im_size, self.agent.state)
+        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+                                                self.im_size, self.agent.state)
+        norm_local_map = (self.local_map.flatten() - 0.5) * 2
+        norm_local_visit_map = local_visit_maps.flatten() - 1.0
+        return np.concatenate((norm_local_map, norm_local_visit_map, self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
