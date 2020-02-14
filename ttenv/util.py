@@ -34,8 +34,22 @@ def transform_2d(vec, theta_base, xy_base = [0.0, 0.0]):
     R is a rotation matrix of the frame w.r.t the global frame.
     """
     assert(len(vec) == 2)
-    return np.matmul([[np.cos(theta_base), np.sin(theta_base)], [-np.sin(theta_base), np.cos(theta_base)]],
-        vec - np.array(xy_base))
+    return np.matmul([[np.cos(theta_base), np.sin(theta_base)],
+                    [-np.sin(theta_base), np.cos(theta_base)]],
+                    vec - np.array(xy_base))
+
+def transform_2d_inv(vec, theta_base, xy_base = [0.0, 0.0]):
+    """
+    Both vec and frame_xy are in the global coordinate. vec is a vector
+    you want to transform with respect to a certain frame which is located at
+    frame_xy with ang.
+    R^T * (vec - frame_xy).
+    R is a rotation matrix of the frame w.r.t the global frame.
+    """
+    assert(len(vec) == 2)
+    return np.matmul([[np.cos(theta_base), -np.sin(theta_base)],
+                    [np.sin(theta_base), np.cos(theta_base)]],
+                    vec) + np.array(xy_base)
 
 def rotation_2d_dot(xy_target, xy_dot_target, theta_base, theta_dot_base):
     """

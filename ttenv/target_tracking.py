@@ -155,8 +155,8 @@ class TargetTrackingEnv0(gym.Env):
         else:
             return self.get_init_pose_random(**kwargs)
 
-    def get_init_pose_random(self,
-                            lin_dist_range=(METADATA['init_distance_min'], METADATA['init_distance_max']),
+    def get_init_pose_random_0(self,
+                            lin_dist_range=(5.0, 15.0),
                             ang_dist_range_target=(-np.pi, np.pi),
                             ang_dist_range_belief=(-np.pi, np.pi),
                             blocked=False,
@@ -203,6 +203,91 @@ class TargetTrackingEnv0(gym.Env):
                         is_agent_valid = False
                         break
                 init_pose['belief_targets'].append(init_pose_belief)
+        return init_pose
+
+    def gen_rand_pose_new(self, frame_xy, frame_theta, min_lin_dist, max_lin_dist,
+            min_ang_dist, max_ang_dist, additional_frame=None):
+        """Genertes random position and yaw.
+        Parameters
+        --------
+        frame_xy, frame_theta : xy and theta coordinate of the frame you want to compute a distance from.
+        min_lin_dist : the minimum linear distance from o_xy to a sample point.
+        max_lin_dist : the maximum linear distance from o_xy to a sample point.
+        min_ang_dist : the minimum angular distance (counter clockwise direction) from c_theta to a sample point.
+        max_ang_dist : the maximum angular distance (counter clockwise direction) from c_theta to a sample point.
+        """
+        if max_ang_dist < min_ang_dist:
+            max_ang_dist += 2*np.pi
+        rand_ang = util.wrap_around(np.random.rand() * \
+                        (max_ang_dist - min_ang_dist) + min_ang_dist)
+
+        rand_r = np.random.rand() * (max_lin_dist - min_lin_dist) + min_lin_dist
+        rand_xy = np.array([rand_r*np.cos(rand_ang), rand_r*np.sin(rand_ang)])
+        rand_xy_global = util.transform_2d_inv(rand_xy, frame_theta, np.array(frame_xy))
+        if additional_frame:
+            rand_xy_global = util.transform_2d_inv(rand_xy_global, additional_frame[2], np.array(additional_frame[:2]))
+        is_valid = not(self.MAP.is_collision(rand_xy_global))
+        return is_valid, [rand_xy_global[0], rand_xy_global[1], rand_ang + frame_theta]
+
+    def get_init_pose_random(self,
+                            lin_dist_range_a2b=METADATA['lin_dist_range_a2b'],
+                            ang_dist_range_a2b=METADATA['ang_dist_range_a2b'],
+                            lin_dist_range_b2t=METADATA['lin_dist_range_b2t'],
+                            ang_dist_range_b2t=METADATA['ang_dist_range_b2t'],
+                            blocked=None,
+                            **kwargs):
+        if blocked is None:
+            if np.random.rand() < 0.5:
+                blocked = True
+            else:
+                blocked = False
+
+        is_agent_valid = False
+        while(not is_agent_valid):
+            init_pose = {}
+            if self.MAP.map is None:
+                if blocked:
+                    raise ValueError('Unable to find a blocked initial condition. There is no obstacle in this map.')
+                a_init = self.agent_init_pos[:2]
+                is_agent_valid = True
+            else:
+                while(not is_agent_valid):
+                    a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
+                    is_agent_valid = not(self.MAP.is_collision(a_init))
+
+            init_pose['agent'] = [a_init[0], a_init[1], np.random.random() * 2 * np.pi - np.pi]
+            init_pose['targets'], init_pose['belief_targets'] = [], []
+            for i in range(self.num_targets):
+                count, is_belief_valid = 0, False
+                while(not is_belief_valid):
+                    is_belief_valid, init_pose_belief = self.gen_rand_pose_new(
+                        init_pose['agent'][:2], init_pose['agent'][2],
+                        lin_dist_range_a2b[0], lin_dist_range_a2b[1],
+                        ang_dist_range_a2b[0], ang_dist_range_a2b[1])
+                    is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_belief[:2])
+                    if is_belief_valid:
+                        is_belief_valid = (blocked == is_blocked)
+                    count += 1
+                    if count > 100:
+                        is_agent_valid = False
+                        break
+                init_pose['belief_targets'].append(init_pose_belief)
+
+                count, is_target_valid, init_pose_target = 0, False, np.zeros((2,))
+                while((not is_target_valid) and is_belief_valid):
+                    is_target_valid, init_pose_target = self.gen_rand_pose_new(
+                        init_pose['belief_targets'][i][:2],
+                        init_pose['belief_targets'][i][2],
+                        lin_dist_range_b2t[0], lin_dist_range_b2t[1],
+                        ang_dist_range_b2t[0], ang_dist_range_b2t[1])
+                    is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_target[:2])
+                    if is_target_valid:
+                        is_target_valid = (blocked == is_blocked)
+                    count += 1
+                    if count > 100:
+                        is_agent_valid = False
+                        break
+                init_pose['targets'].append(init_pose_target)
         return init_pose
 
     def reset(self, **kwargs):
