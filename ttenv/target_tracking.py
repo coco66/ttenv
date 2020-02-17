@@ -290,6 +290,27 @@ class TargetTrackingEnv0(gym.Env):
                 init_pose['targets'].append(init_pose_target)
         return init_pose
 
+    def add_history_to_state(self, state):
+        """
+        Replacing the current logetcov value to a sequence of the recent few
+        logdetcov values for each target.
+        It uses fixed values for :
+            1) the number of target dependent variables
+            2) current logdetcov index at each target dependent vector
+            3) the number of target independent variables
+        """
+        NUM_TARGET_DEP_VARS = 6
+        NUM_TARGET_INDEP_VARS = 2
+        LOGDETCOV_IDX = 4
+        new_state = []
+        for i in range(self.num_targets):
+            self.logdetcov_history[i].add(state[NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX])
+            new_state = np.concatenate((new_state, state[NUM_TARGET_DEP_VARS*i: NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX]))
+            new_state = np.concatenate((new_state, self.logdetcov_history[i].get_values()))
+            new_state = np.concatenate((new_state, state[NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX+1:NUM_TARGET_DEP_VARS*(i+1)]))
+        new_state = np.concatenate((new_state, state[-NUM_TARGET_INDEP_VARS:]))
+        return new_state
+
     def reset(self, **kwargs):
         self.state = []
         init_pose = self.get_init_pose(**kwargs)
