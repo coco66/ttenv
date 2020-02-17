@@ -190,6 +190,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
     def reset(self, **kwargs):
         self.state = []
+        self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
@@ -219,7 +220,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
     def step(self, action):
         action_vw = self.action_map[action]
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-
+        self.num_collisions += int(is_col)
         observed = []
         for i in range(self.num_targets):
             self.targets[i].update(self.agent.state[:2])
