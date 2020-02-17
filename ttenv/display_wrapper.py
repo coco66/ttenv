@@ -102,7 +102,7 @@ class Display2D(Wrapper):
             if self.local_view:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
                 im0 = ax0.imshow(np.reshape(self.env_core.local_map, (im_size,im_size)),
-                            cmap='gray_r', origin='upper',
+                            cmap='gray_r', origin='lower',
                             extent=[local_mapmin[0], -local_mapmin[0], 0.0, -local_mapmin[0]*2])
             if not record :
                 plt.draw()
