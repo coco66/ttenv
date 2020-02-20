@@ -63,6 +63,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
+        self.MAP.reset_visit_freq_map(decay=0.99)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
@@ -138,7 +139,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(discount=0.95)
+        self.MAP.reset_visit_freq_map(decay=0.99)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                             self.im_size, self.agent.state, get_visit_freq=True)
@@ -158,7 +159,6 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        self.MAP.decay_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state) # visit freq map is updated as well.
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []
@@ -217,7 +217,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(discount=0.95)
+        self.MAP.reset_visit_freq_map(decay=0.99)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
                                                     self.im_size, self.agent.state)
@@ -247,7 +247,6 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
 
-        self.MAP.decay_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state) # visit freq map is updated as well.
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
         self.state = []

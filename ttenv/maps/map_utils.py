@@ -36,12 +36,13 @@ class GridMap(object):
         self.fov = fov
         self.visit_freq_map = None
 
-    def reset_visit_freq_map(self, discount):
+    def reset_visit_freq_map(self, decay):
         self.visit_freq_map = np.zeros(self.mapdim)
-        self.visit_discount_factor = discount
+        self.visit_decay_factor = decay
 
     def decay_visit_freq_map(self):
-        self.visit_freq_map *= self.visit_discount_factor
+        if self.visit_freq_map is not None:
+            self.visit_freq_map *= self.visit_decay_factor
 
     def se2_to_cell(self, pos):
         pos = pos[:2]
@@ -136,6 +137,7 @@ class GridMap(object):
         """
         Return radial and angular distances of the closest obstacle/boundary cell
         """
+        self.decay_visit_freq_map()
         ang_grid = np.arange(-.5*self.fov, .5*self.fov, ang_res)
         closest_obstacle = (self.r_max, 0.0)
         start_rc = self.se2_to_cell(odom[:2])
