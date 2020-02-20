@@ -64,7 +64,12 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.state))
+        obs = np.concatenate((self.local_map.flatten(), self.state))
+
+        # For display purpose
+        self.local_map = [self.local_map]
+        self.local_mapmin_g = [self.local_mapmin_g]
+        return obs
 
     def step(self, action):
         action_vw = self.action_map[action]
@@ -98,7 +103,12 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
-        return np.concatenate((self.local_map.flatten(), self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        obs = np.concatenate((self.local_map.flatten(), self.state))
+
+        # For display purpose
+        self.local_map = [self.local_map]
+        self.local_mapmin_g = [self.local_mapmin_g]
+        return obs, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 class TargetTrackingEnv6(TargetTrackingEnv5):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
@@ -215,6 +225,12 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map.flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
+
+        # For display purpose
+        self.local_map = [self.local_map]
+        self.local_map.extend(local_visit_maps)
+        self.local_mapmin_g = [self.local_mapmin_g]
+        self.local_mapmin_g.extend(local_mapmin_gs)
         return np.concatenate((norm_local_map, norm_local_visit_map, self.state))
 
     def step(self, action):
@@ -256,4 +272,10 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map.flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
+
+        # For display purpose
+        self.local_map = [self.local_map]
+        self.local_map.extend(local_visit_maps)
+        self.local_mapmin_g = [self.local_mapmin_g]
+        self.local_mapmin_g.extend(local_mapmin_gs)
         return np.concatenate((norm_local_map, norm_local_visit_map, self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}

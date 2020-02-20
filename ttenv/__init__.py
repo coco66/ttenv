@@ -15,7 +15,7 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
             T_steps = 150
         else:
             T_steps = 100
-    local_view = False
+    local_view = 0
     if env_name == 'TargetTracking-v0':
         env0 = target_tracking.TargetTrackingEnv0(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v1':
@@ -27,21 +27,21 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v4':
         env0 = target_tracking.TargetTrackingEnv4(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5':
-        local_view = True
+        local_view = 1
         env0 = target_imtracking.TargetTrackingEnv5(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v6':
-        local_view = True
+        local_view = 1
         env0 = target_imtracking.TargetTrackingEnv6(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v7':
-        local_view = True
+        local_view = 5
         env0 = target_imtracking.TargetTrackingEnv7(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v1_SEQ':
         env0 = target_seq_tracking.TargetTrackingEnv1_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5_SEQ':
-        local_view = True
+        local_view = 1
         env0 = target_seq_tracking.TargetTrackingEnv5_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v7_SEQ':
-        local_view = True
+        local_view = 5
         env0 = target_seq_tracking.TargetTrackingEnv7_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
@@ -58,6 +58,6 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
         env = Display2D(env, figID=figID, local_view=local_view)
     if record:
         from ttenv.display_wrapper import Video2D
-        env = Video2D(env, dirname = directory)
+        env = Video2D(env, dirname = directory, local_view=local_view)
 
     return env
