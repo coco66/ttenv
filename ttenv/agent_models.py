@@ -14,7 +14,7 @@ SEDynamicsVel : update dynamics function for contant linear and angular velociti
 
 import numpy as np
 from ttenv.metadata import METADATA
-import ttenv.util as util 
+import ttenv.util as util
 
 class Agent(object):
     def __init__(self, dim, sampling_period, limit, collision_func, margin=METADATA['margin']):
@@ -136,20 +136,10 @@ class Agent2DFixedPath(Agent):
 
     def update(self, margin_pos=None):
         # fixed policy for now
-        self.t += 1
         new_state = np.concatenate((self.path[self.t][:2], self.path[self.t][-2:]))
-        if margin_pos is not None:
-            if type(margin_pos) != list:
-                margin_pos = [margin_pos]
-            in_margin = False
-            while(True):
-                in_margin = self.margin_check(new_state[:2], margin_pos)
-                if in_margin:
-                    new_state[:2] = new_state[:2] + 0.01*(np.random.random((2,))-0.5)
-                else:
-                    break
         self.state = new_state
+        self.t += 1
 
     def reset(self, init_state):
         self.t = 0
-        self.state = np.concatenate((self.path[self.t][:2], self.path[self.t][-2:]))
+        self.state = init_state
