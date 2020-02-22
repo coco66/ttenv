@@ -63,7 +63,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.99)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
@@ -139,7 +139,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.99)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                             self.im_size, self.agent.state, get_visit_freq=True)
@@ -217,7 +217,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.99)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
                                                     self.im_size, self.agent.state)
