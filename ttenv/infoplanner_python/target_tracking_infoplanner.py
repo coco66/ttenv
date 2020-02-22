@@ -59,7 +59,7 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         self.cfg = Configure(map_nd, cmap_data)
         sensor = infoplanner.IGL.RangeBearingSensor(self.sensor_r, self.fov, self.sensor_r_sd, self.sensor_b_sd, map_nd, cmap_data)
         self.agent = Agent_InfoPlanner(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
-                            collision_func=lambda x: map_utils.is_collision(self.MAP, x),
+                            collision_func=lambda x: self.MAP.is_collision(x),
                             se2_env=se2_env, sensor_obj=sensor)
         self.belief_targets = BeliefWrapper(num_targets)
         self.targets = TargetWrapper(num_targets)
@@ -73,16 +73,20 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         for i in range(self.num_targets):
             t_init_b_sets.append(init_pose['belief_targets'][i][:2])
             t_init_sets.append(init_pose['targets'][i][:2])
-            r, alpha, _ = util.xyg2polarb(np.array(t_init_b_sets[-1][:2]),
-                                np.array(init_pose['agent'][:2]), init_pose['agent'][2])
+            r, alpha = util.relative_distance_polar(np.array(t_init_b_sets[-1][:2]),
+                                    xy_base=np.array(init_pose['agent'][:2]),
+                                    theta_base=init_pose['agent'][2])
             logdetcov = np.log(LA.det(self.target_init_cov*np.eye(self.target_dim)))
             self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
         # Build a target
-        target = self.cfg.setup_integrator_targets(n_targets=self.num_targets, init_pos=t_init_sets,
-                                                init_vel=self.target_init_vel, q=METADATA['const_q_true'], max_vel=METADATA['target_vel_limit'])  # Integrator Ground truth Model
+        target = self.cfg.setup_integrator_targets(n_targets=self.num_targets,
+                                                init_pos=t_init_sets,
+                                                init_vel=self.target_init_vel,
+                                                q=METADATA['const_q_true'],
+                                                max_vel=METADATA['target_vel_limit'])  # Integrator Ground truth Model
         belief_target = self.cfg.setup_integrator_belief(n_targets=self.num_targets, q=METADATA['const_q'],
                                                 init_pos=t_init_b_sets,
                                                 cov_pos=self.target_init_cov, cov_vel=self.target_init_cov,
@@ -139,9 +143,10 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         target_b_cov = self.agent.get_belief_cov()
         control_input = self.action_map[action]
         for n in range(self.num_targets):
-            r_b, alpha_b, _ = util.xyg2polarb(target_b_state[self.target_dim*n: self.target_dim*n+2],
-                                                self.agent.state[:2], self.agent.state[2])
-            r_dot_b, alpha_dot_b = util.xyg2polarb_dot_2(
+            r_b, alpha_b = util.relative_distance_polar(
+                        target_b_state[self.target_dim*n: self.target_dim*n+2],
+                        xy_base=self.agent.state[:2], theta_base=self.agent.state[2])
+            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
                                     target_b_state[self.target_dim*n: self.target_dim*n+2],
                                     target_b_state[self.target_dim*n+2:],
                                     self.agent.state[:2], self.agent.state[2],
