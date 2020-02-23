@@ -134,7 +134,7 @@ class TargetTrackingEnv0(gym.Env):
         is_valid = not(self.MAP.is_collision(rand_xy))
         return is_valid, [rand_xy[0], rand_xy[1], rand_ang]
 
-    def get_init_pose(self, init_pose_list=[], **kwargs):
+    def get_init_pose(self, init_pose_list=[], target_path=[], **kwargs):
         """Generates initial positions for the agent, targets, and target beliefs.
         Parameters
         ---------
@@ -149,7 +149,9 @@ class TargetTrackingEnv0(gym.Env):
                             agent. -pi <= x <= pi
         blocked : True if there is an obstacle between a target and the agent.
         """
-        if init_pose_list:
+        if init_pose_list != []:
+            if target_path != []:
+                self.set_target_path(target_path[self.reset_num])
             self.reset_num += 1
             return init_pose_list[self.reset_num-1]
         else:
@@ -310,6 +312,13 @@ class TargetTrackingEnv0(gym.Env):
             new_state = np.concatenate((new_state, state[NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX+1:NUM_TARGET_DEP_VARS*(i+1)]))
         new_state = np.concatenate((new_state, state[-NUM_TARGET_INDEP_VARS:]))
         return new_state
+
+    def set_target_path(self, target_path):
+        targets = [Agent2DFixedPath(dim=self.target_dim, sampling_period=self.sampling_period,
+                                limit=self.limit['target'],
+                                collision_func=lambda x: self.MAP.is_collision(x),
+                                path=target_path[i]) for i in range(self.num_targets)]
+        self.targets = targets
 
     def reset(self, **kwargs):
         self.state = []
