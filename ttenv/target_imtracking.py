@@ -59,7 +59,8 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
             r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                  self.agent.state[:2], self.agent.state[2])
             logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
+            obs = self.observation(self.targets[i])
+            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, float(obs[0])])
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
@@ -278,3 +279,39 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         self.local_mapmin_g = [self.local_mapmin_g]
         self.local_mapmin_g.extend(local_mapmin_gs)
         return np.concatenate((norm_local_map, norm_local_visit_map, self.state)), reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+class TargetTrackingEnv8(TargetTrackingEnv5):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True,
+                                        known_noise=True, im_size=28, **kwargs):
+        TargetTrackingEnv5.__init__(self, num_targets=num_targets,
+            map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
+        self.id = 'TargetTracking-v8'
+        self.observation_space = spaces.Box(np.concatenate((
+            -np.ones(5*im_size*im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
+            dtype=np.float32)
+
+    def reset(self, **kwargs):
+        _ = super().reset(**kwargs)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+                                                self.im_size, self.agent.state)
+        norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
+        norm_local_visit_map = local_visit_maps.flatten() - 1.0
+
+        # For display purpose
+        self.local_map.extend(local_visit_maps)
+        self.local_mapmin_g.extend(local_mapmin_gs)
+        return np.concatenate((norm_local_map, norm_local_visit_map, self.state))
+
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+                                                self.im_size, self.agent.state)
+        norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
+        norm_local_visit_map = local_visit_maps.flatten() - 1.0
+
+        # For display purpose
+        self.local_map.extend(local_visit_maps)
+        self.local_mapmin_g.extend(local_mapmin_gs)
+        return np.concatenate((norm_local_map, norm_local_visit_map, self.state)), reward, done, info
