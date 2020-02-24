@@ -39,10 +39,11 @@ class Agent(object):
 
 class AgentDoubleInt2D(Agent):
     def __init__(self, dim, sampling_period, limit, collision_func,
-                    margin=METADATA['margin'], A=None, W=None):
+                    margin=METADATA['margin'], A=None, W=None, obs_check_func=None):
         Agent.__init__(self, dim, sampling_period, limit, collision_func, margin=margin)
         self.A = np.eye(self.dim) if A is None else A
         self.W = W
+        self.obs_check_func = obs_check_func
 
     def update(self, margin_pos=None):
         new_state = np.matmul(self.A, self.state[:self.dim])
@@ -53,6 +54,9 @@ class AgentDoubleInt2D(Agent):
             new_state = self.collision_control(new_state)
 
         self.state = new_state
+        self.range_check()
+        if self.obs_check_func is not None:
+            self.obstacle_detour_maneuver()
 
     def collision_control(self, new_state):
         new_state[0] = self.state[0]
@@ -61,6 +65,18 @@ class AgentDoubleInt2D(Agent):
             new_state[2] = -2 * .2 * new_state[2] + np.random.normal(0.0, 0.2)#-0.001*np.sign(new_state[2])
             new_state[3] = -2 * .2 * new_state[3] + np.random.normal(0.0, 0.2)#-0.001*np.sign(new_state[3])
         return new_state
+
+    def obstacle_detour_maneuver(self):
+        odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
+        obs_pos = self.obs_check_func(odom)
+        if obs_pos is not None and obs_pos[0] < 5.0:
+            rand_num = np.random.random()
+            if rand_num < 0.5 :
+                self.state[2] *= rand_num
+                self.state[3] *= (1+rand_num)
+            else: # 1-rand_num
+                self.state[2] *= (2-rand_num)
+                self.state[3] *= (1-rand_num)
 
 class AgentSE2(Agent):
     def __init__(self, dim, sampling_period, limit, collision_func,

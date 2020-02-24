@@ -352,7 +352,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         # Build a target
         self.targets = [AgentDoubleInt2D(self.target_dim, self.sampling_period, self.limit['target'],
                             lambda x: self.MAP.is_collision(x),
-                            W=self.target_true_noise_sd, A=self.targetA) for _ in range(num_targets)]
+                            W=self.target_true_noise_sd, A=self.targetA,
+                            obs_check_func=lambda x: self.MAP.get_front_obstacle(x)) for _ in range(num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
