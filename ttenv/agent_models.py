@@ -36,13 +36,33 @@ class Agent(object):
     def reset(self, init_state):
         self.state = init_state
 
-
 class AgentDoubleInt2D(Agent):
     def __init__(self, dim, sampling_period, limit, collision_func,
-                    margin=METADATA['margin'], A=None, W=None, obs_check_func=None):
+                    margin=METADATA['margin'], A=None, W=None):
         Agent.__init__(self, dim, sampling_period, limit, collision_func, margin=margin)
         self.A = np.eye(self.dim) if A is None else A
         self.W = W
+
+    def update(self, margin_pos=None):
+        new_state = np.matmul(self.A, self.state[:self.dim])
+        if self.W is not None:
+            noise_sample = np.random.multivariate_normal(np.zeros(self.dim,), self.W)
+            new_state += noise_sample
+
+        is_col = 0
+        if self.collision_check(new_state[:2]):
+            is_col = 1
+            new_state[:2] = self.state[:2]
+
+        self.state = new_state
+        self.range_check()
+        return is_col
+
+class AgentDoubleInt2D_Nonlinear(AgentDoubleInt2D):
+    def __init__(self, dim, sampling_period, limit, collision_func,
+                    margin=METADATA['margin'], A=None, W=None, obs_check_func=None):
+        AgentDoubleInt2D.__init__(self, dim, sampling_period, limit,
+            collision_func, margin=margin, A=A, W=W)
         self.obs_check_func = obs_check_func
 
     def update(self, margin_pos=None):
@@ -50,33 +70,55 @@ class AgentDoubleInt2D(Agent):
         if self.W is not None:
             noise_sample = np.random.multivariate_normal(np.zeros(self.dim,), self.W)
             new_state += noise_sample
+
+        is_col = 0
         if self.collision_check(new_state[:2]):
-            new_state = self.collision_control(new_state)
+            new_state = self.collision_control()
+            is_col = 1
+
+        if self.obs_check_func is not None:
+            del_vx, del_vy = self.obstacle_detour_maneuver(
+                    r_margin=METADATA['target_vel_limit']*self.sampling_period*2)
+            new_state[2] += del_vx
+            new_state[3] += del_vy
 
         self.state = new_state
         self.range_check()
-        if self.obs_check_func is not None:
-            self.obstacle_detour_maneuver()
+        return is_col
 
-    def collision_control(self, new_state):
-        new_state[0] = self.state[0]
-        new_state[1] = self.state[1]
-        if self.dim > 2:
-            new_state[2] = -2 * .2 * new_state[2] + np.random.normal(0.0, 0.2)#-0.001*np.sign(new_state[2])
-            new_state[3] = -2 * .2 * new_state[3] + np.random.normal(0.0, 0.2)#-0.001*np.sign(new_state[3])
-        return new_state
+    def range_check(self):
+        self.state[:2] = np.clip(self.state[:2], self.limit[0][:2], self.limit[1][:2])
+        v_square = self.state[2:]**2
+        del_v = np.sum(v_square) - self.limit[1][2]**2
+        if del_v > 0.0:
+            self.state[2] = np.sign(self.state[2]) * np.sqrt(max(0.0, v_square[0] - del_v * v_square[0] / (v_square[0] + v_square[1])))
+            self.state[3] = np.sign(self.state[3]) * np.sqrt(max(0.0, v_square[1] - del_v * v_square[1] / (v_square[0] + v_square[1])))
 
-    def obstacle_detour_maneuver(self):
+    def collision_control(self):
         odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
         obs_pos = self.obs_check_func(odom)
-        if obs_pos is not None and obs_pos[0] < 5.0:
-            rand_num = np.random.random()
-            if rand_num < 0.5 :
-                self.state[2] *= rand_num
-                self.state[3] *= (1+rand_num)
-            else: # 1-rand_num
-                self.state[2] *= (2-rand_num)
-                self.state[3] *= (1-rand_num)
+        v = np.sqrt(np.sum(np.square(self.state[2:]))) + np.random.normal(0.0,1.0)
+        th = obs_pos[1] - (1 + np.random.random()) * np.pi/2 if obs_pos[1] >= 0 else obs_pos[1] + (1 + np.random.random()) * np.pi/2
+        vx = v * np.cos(th + odom[2])
+        vy = v * np.sin(th + odom[2])
+        state = np.array([self.state[0], self.state[1], vx, vy])
+        return state
+
+    def obstacle_detour_maneuver(self, r_margin=1.0):
+        # self.state is the current state.
+        # new_state is the upated state but yet not confirmed.
+        odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
+        obs_pos = self.obs_check_func(odom)
+        speed = np.sqrt(np.sum(self.state[2:]**2))
+        rot_ang = np.pi/2 * (1. + 1./(1. + np.exp(-(speed-0.5*METADATA['target_vel_limit']))))
+        if obs_pos is not None:
+            acc = (1. + np.cos(obs_pos[1])) / max(0.5, obs_pos[0] - r_margin)
+            th = obs_pos[1] - rot_ang if obs_pos[1] >= 0 else obs_pos[1] + rot_ang
+            del_vx = acc * np.cos(th + odom[2]) * self.sampling_period
+            del_vy = acc * np.sin(th + odom[2]) * self.sampling_period
+            return del_vx, del_vy
+        else:
+            return 0., 0.
 
 class AgentSE2(Agent):
     def __init__(self, dim, sampling_period, limit, collision_func,

@@ -80,7 +80,6 @@ class TargetTrackingEnv0(gym.Env):
         map_dir_path = '/'.join(map_utils.__file__.split('/')[:-1])
         self.MAP = map_utils.GridMap(
             map_path=os.path.join(map_dir_path, map_name),
-            r_max = self.sensor_r, fov = self.fov/180.0*np.pi,
             margin2wall = METADATA['margin2wall'])
         # LIMITS
         self.limit = {} # 0: low, 1:high
@@ -167,7 +166,7 @@ class TargetTrackingEnv0(gym.Env):
                             ang_dist_range_b2t=METADATA['ang_dist_range_b2t'],
                             blocked=None,
                             **kwargs):
-        if blocked is None:
+        if blocked is None and self.MAP.map is not None:
             if np.random.rand() < 0.5:
                 blocked = True
             else:
@@ -177,8 +176,7 @@ class TargetTrackingEnv0(gym.Env):
         while(not is_agent_valid):
             init_pose = {}
             if self.MAP.map is None:
-                if blocked:
-                    raise ValueError('Unable to find a blocked initial condition. There is no obstacle in this map.')
+                blocked = False
                 a_init = self.agent_init_pos[:2]
                 is_agent_valid = True
             else:
@@ -350,10 +348,11 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
                             lambda x: self.MAP.is_collision(x))
         # Build a target
-        self.targets = [AgentDoubleInt2D(self.target_dim, self.sampling_period, self.limit['target'],
+        self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim, self.sampling_period, self.limit['target'],
                             lambda x: self.MAP.is_collision(x),
                             W=self.target_true_noise_sd, A=self.targetA,
-                            obs_check_func=lambda x: self.MAP.get_front_obstacle(x)) for _ in range(num_targets)]
+                            obs_check_func=lambda x: self.MAP.get_closest_obstacle(
+                                x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
@@ -377,6 +376,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         return self.state
 
     def step(self, action):

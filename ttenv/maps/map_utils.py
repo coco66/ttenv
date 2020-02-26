@@ -11,6 +11,7 @@ Therefore, in the display_wrapper, the map is flipped.
 """
 import numpy as np
 import yaml
+from ttenv.metadata import METADATA
 
 def round(x):
     if x >= 0:
@@ -19,7 +20,7 @@ def round(x):
         return int(x-0.5)
 
 class GridMap(object):
-    def __init__(self, map_path, r_max=1.0, fov=np.pi, margin2wall=0.5):
+    def __init__(self, map_path, margin2wall=0.5):
         map_config = yaml.load(open(map_path+".yaml", "r"))
         self.map = np.loadtxt(map_path+".cfg")
         if 'empty' in map_path:
@@ -32,8 +33,6 @@ class GridMap(object):
         self.mapmax = np.array(map_config['mapmax'])
         self.margin2wall = margin2wall
         self.origin = map_config['origin']
-        self.r_max = r_max
-        self.fov = fov
         self.visit_freq_map = None
 
     def reset_visit_freq_map(self, decay):
@@ -99,13 +98,13 @@ class GridMap(object):
             i += 1
         return False
 
-    def get_front_obstacle(self, odom, **kwargs):
+    def get_front_obstacle(self, odom, r_max=METADATA['sensor_r'], **kwargs):
         """
         Return radial and angular distances of the front obstacle/boundary cell
         """
         ro_min_t = None
         start_rc = self.se2_to_cell(odom[:2])
-        end_pt_global_frame = coord_change2g(np.array([self.r_max*np.cos(0.0), self.r_max*np.sin(0.0)]), odom[-1]) + odom[:2]
+        end_pt_global_frame = coord_change2g(np.array([r_max*np.cos(0.0), r_max*np.sin(0.0)]), odom[-1]) + odom[:2]
         if self.map is None:
             if not(self.in_bound(end_pt_global_frame)):
                 end_rc = self.se2_to_cell(end_pt_global_frame)
@@ -133,17 +132,19 @@ class GridMap(object):
         else:
             return ro_min_t, 0.0
 
-    def get_closest_obstacle(self, odom, ang_res=0.05):
+    def get_closest_obstacle(self, odom, ang_res=0.05,
+                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'],
+                update_visit_freq=True):
         """
         Return radial and angular distances of the closest obstacle/boundary cell
         """
         self.decay_visit_freq_map()
-        ang_grid = np.arange(-.5*self.fov, .5*self.fov, ang_res)
-        closest_obstacle = (self.r_max, 0.0)
+        ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
+        closest_obstacle = (r_max, 0.0)
         start_rc = self.se2_to_cell(odom[:2])
         for ang in ang_grid:
             end_pt_global_frame = coord_change2g(np.array(
-                            [self.r_max*np.cos(ang), self.r_max*np.sin(ang)]),
+                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
                             odom[-1]) + odom[:2]
             if self.map is None:
                 # if not(self.in_bound(end_pt_global_frame)):
@@ -154,7 +155,7 @@ class GridMap(object):
                     pt = self.cell_to_se2(ray_cells[:,i])
                     if not(self.in_bound(pt)):
                         break
-                    if self.visit_freq_map is not None:
+                    if self.visit_freq_map is not None and update_visit_freq:
                         self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
                     i += 1
                 if i < ray_cells.shape[-1]: # break!
@@ -168,14 +169,14 @@ class GridMap(object):
                 while(i < ray_cells.shape[-1]): # break!
                     if self.is_collision_ray_cell(ray_cells[:,i]):
                         break
-                    if self.visit_freq_map is not None:
+                    if self.visit_freq_map is not None and update_visit_freq:
                         self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
                     i += 1
                 if i < ray_cells.shape[-1]:
                     ro_min_t = np.sqrt(np.sum(np.square(self.cell_to_se2(ray_cells[:,i]) - odom[:2])))
                     if ro_min_t < closest_obstacle[0]:
                         closest_obstacle = (ro_min_t, ang)
-        if closest_obstacle[0] == self.r_max:
+        if closest_obstacle[0] == r_max:
             return None
         else:
             return closest_obstacle
@@ -197,9 +198,6 @@ class GridMap(object):
                         local_visit_freq_map[c,r] += self.visit_freq_map[cell_global[0], cell_global[1]]
 
         local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
-        # indvec = np.reshape([[[r,c] for r in range(im_size)] for c in range(im_size)], (-1,2))
-        # xy_local = cell_to_se2_batch(indvec, local_mapmin, self.mapres)
-        # xy_global = np.add(np.matmul(R, xy_local.T).T odom[:2])
         return local_map, local_mapmin_g, local_visit_freq_map
 
     def local_map(self, im_size, odom, get_visit_freq=False):
