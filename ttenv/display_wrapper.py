@@ -56,7 +56,8 @@ class Display2D(Wrapper):
             if self.local_view:
                 [f0.clf() for f0 in self.fig0]
                 ax0 = [f0.subplots() for f0 in self.fig0]
-
+            # To use the visit frequency map as a background, replace self.mp
+            # with 2 * self.map + self.env_core.MAP.visit_freq_map.T
             im = ax.imshow(self.map, cmap='gray_r', origin='lower',
                                         extent=[self.mapmin[0], self.mapmax[0],
                                                 self.mapmin[1], self.mapmax[1]])
@@ -78,17 +79,18 @@ class Display2D(Wrapper):
                             angle = 180/np.pi*np.arctan2(np.real(eig_vec[0][1]),
                             np.real(eig_vec[0][0])) ,fill=True, zorder=2,
                             facecolor='g', alpha=0.5)
-                # For Velocity
-                eig_val, eig_vec = LA.eig(target_cov[i][2:,2:])
-                belief_target_vel = patches.Ellipse(
-                            (target_b_state[i][0], target_b_state[i][1]),
-                            2*np.sqrt(eig_val[0])*self.c_cf,
-                            2*np.sqrt(eig_val[1])*self.c_cf,
-                            angle = 180/np.pi*np.arctan2(np.real(eig_vec[0][1]),
-                            np.real(eig_vec[0][0])) ,fill=True, zorder=2,
-                            facecolor='m', alpha=0.5)
                 ax.add_patch(belief_target)
-                ax.add_patch(belief_target_vel)
+
+                if target_cov[i].shape[0]==4: # For Velocity
+                    eig_val, eig_vec = LA.eig(target_cov[i][2:,2:])
+                    belief_target_vel = patches.Ellipse(
+                                (target_b_state[i][0], target_b_state[i][1]),
+                                2*np.sqrt(eig_val[0])*self.c_cf,
+                                2*np.sqrt(eig_val[1])*self.c_cf,
+                                angle = 180/np.pi*np.arctan2(np.real(eig_vec[0][1]),
+                                np.real(eig_vec[0][0])) ,fill=True, zorder=2,
+                                facecolor='m', alpha=0.5)
+                    ax.add_patch(belief_target_vel)
 
                 ax.plot(target_b_state[i][0], target_b_state[i][1], marker='o',
                         markersize=10, linewidth=5, markerfacecolor='none',
