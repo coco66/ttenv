@@ -43,12 +43,11 @@ class TargetTrackingBase(gym.Env):
         self.const_q = METADATA['const_q']
         self.const_q_true = METADATA['const_q_true']
 
-        self.reset_num = 0
-
         # initialization
         self.agent_init_pos =  np.array([self.MAP.origin[0], self.MAP.origin[1], 0.0])
         self.target_init_pos = np.array(self.MAP.origin)
         self.target_init_cov = METADATA['target_init_cov']
+        self.reset_num = 0
 
     def reset(self, **kwargs):
         self.state = []
@@ -56,6 +55,38 @@ class TargetTrackingBase(gym.Env):
         init_pose = self.get_init_pose(**kwargs)
         self.reset_num += 1
         return init_pose
+
+    def step(self, action):
+        # The agent performs an action (t -> t+1)
+        action_vw = self.action_map[action]
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        self.num_collisions += int(is_col)
+
+        # The targets move (t -> t+1) and are observed by the agent.
+        observed = self.update_target_and_belief()
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
+                                                                is_col=is_col)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+
+        self.update_state(observed, obstacles_pt, action_vw)
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def update_target_and_belief(self):
+        observed = []
+        for i in range(self.num_targets):
+            # Update a target
+            self.targets[i].update(self.agent.state[:2])
+            # Observe
+            observation = self.observation(self.targets[i])
+            observed.append(observation[0])
+            # If observed, update a belief.
+            if observation[0]:
+                self.belief_targets[i].update(observation[1], self.agent.state)
+            # Predict the target for the next step.
+            self.belief_targets[i].predict()
+        return observed
 
     def get_init_pose(self, init_pose_list=[], target_path=[], **kwargs):
         """Generates initial positions for the agent, targets, and target beliefs.

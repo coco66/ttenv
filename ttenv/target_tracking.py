@@ -86,43 +86,8 @@ class TargetTrackingEnv0(TargetTrackingBase):
                             collision_func=lambda x: self.MAP.is_collision(x))
                                 for _ in range(num_targets)]
 
-    def reset(self, **kwargs):
-        init_pose = super().reset(**kwargs)
-        self.agent.reset(init_pose['agent'])
-        for i in range(self.num_targets):
-            self.belief_targets[i].reset(
-                    init_state=init_pose['belief_targets'][i][:self.target_dim],
-                    init_cov=self.target_init_cov)
-            self.targets[i].reset(np.array(init_pose['targets'][i][:self.target_dim]))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, logdetcov, 0.0])
-
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
-        return self.state
-
-    def step(self, action):
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        observed = []
-        for i in range(self.num_targets):
-            self.targets[i].update(self.agent.state[:2])
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            self.belief_targets[i].predict() # Belief state at t+1
-            if obs[0]: # if observed, update the target belief.
-                self.belief_targets[i].update(obs[1], self.agent.state)
-
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
-                                                                is_col=is_col)
+    def update_state(self, observed, obstacles_pt, *args, **kwargs):
         self.state = []
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
         for i in range(self.num_targets):
             r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
@@ -131,7 +96,23 @@ class TargetTrackingEnv0(TargetTrackingBase):
                                     np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def reset(self, **kwargs):
+        init_pose = super().reset(**kwargs)
+        self.agent.reset(init_pose['agent'])
+        for i in range(self.num_targets):
+            self.belief_targets[i].reset(
+                    init_state=init_pose['belief_targets'][i][:self.target_dim],
+                    init_cov=self.target_init_cov)
+            self.targets[i].reset(np.array(init_pose['targets'][i][:self.target_dim]))
+
+        # RL state
+        observed = self.update_target_and_belief()
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+        self.update_state(observed, obstacles_pt)
+        return self.state
 
 class TargetTrackingEnv1(TargetTrackingBase):
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
@@ -207,49 +188,8 @@ class TargetTrackingEnv1(TargetTrackingBase):
                             collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(self.num_targets)]
 
-    def reset(self, **kwargs):
-        self.set_targets()
-        init_pose = super().reset(**kwargs)
-        self.agent.reset(init_pose['agent'])
-        for i in range(self.num_targets):
-            self.belief_targets[i].reset(
-                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
-                        init_cov=self.target_init_cov)
-            self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            obs = self.observation(self.targets[i])
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, float(obs[0])])
-
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
-        return self.state
-
-    def step(self, action):
-        # The agent performs an action (t -> t+1)
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        self.num_collisions += int(is_col)
-
-        # The targets move (t -> t+1) and are observed by the agent.
-        observed = []
-        for i in range(self.num_targets):
-            self.targets[i].update(self.agent.state[:2])
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            self.belief_targets[i].predict() # Belief state at t+1
-            if obs[0]: # if observed, update the target belief.
-                self.belief_targets[i].update(obs[1], self.agent.state)
-
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
-                                                                is_col=is_col)
+    def update_state(self, observed, obstacles_pt, agent_vw):
         self.state = []
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
         for i in range(self.num_targets):
             r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
@@ -258,13 +198,31 @@ class TargetTrackingEnv1(TargetTrackingBase):
                                     self.belief_targets[i].state[:2],
                                     self.belief_targets[i].state[2:],
                                     self.agent.state[:2], self.agent.state[2],
-                                    action_vw[0], action_vw[1])
+                                    agent_vw[0], agent_vw[1])
             self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
                                     np.log(LA.det(self.belief_targets[i].cov)),
                                     float(observed[i])])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def reset(self, **kwargs):
+        self.set_targets()
+        # Initialize
+        init_pose = super().reset(**kwargs)
+        self.agent.reset(init_pose['agent'])
+        for i in range(self.num_targets):
+            self.belief_targets[i].reset(
+                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
+                        init_cov=self.target_init_cov)
+            self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
+        # RL state
+        observed = self.update_target_and_belief()
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+        self.update_state(observed, obstacles_pt, agent_vw=[0.,0.])
+
+        return self.state
 
 class TargetTrackingEnv3(TargetTrackingEnv0):
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
@@ -303,6 +261,8 @@ class TargetTrackingEnv3(TargetTrackingEnv0):
                             for _ in range(num_targets)]
 
     def step(self, action):
+        # TODO : KF predict/update steps should be corrected.
+        # TODO : Integrate with the base step function.
         action_vw = self.action_map[action]
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
@@ -377,6 +337,7 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                             for _ in range(num_targets)]
 
     def reset(self, **kwargs):
+        # TODO : KF predict/update steps should be corrected.
         self.state = []
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
@@ -397,6 +358,8 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
         return self.state
 
     def step(self, action):
+        # TODO : KF predict/update steps should be corrected.
+        # TODO : Integrate with the base step function.
         action_vw = self.action_map[action]
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)

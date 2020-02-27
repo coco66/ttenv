@@ -44,9 +44,7 @@ class KFbelief(object):
     def predict(self):
         # Prediction
         state_new = np.matmul(self.A, self.state)
-        cov_new = np.matmul(np.matmul(self.A, self.cov), self.A.T) +  self.W
-        if True: # LA.det(cov_new) < 1e6:
-            self.cov = cov_new
+        self.cov = np.matmul(np.matmul(self.A, self.cov), self.A.T) +  self.W
         self.state = np.clip(state_new, self.limit[0], self.limit[1])
 
     def update(self, z_t, x_t):
@@ -76,13 +74,8 @@ class KFbelief(object):
         K = np.matmul(np.matmul(self.cov, Hmat.T), LA.inv(R))
         C = np.eye(self.dim) - np.matmul(K, Hmat)
 
-        cov_new = np.matmul(C, self.cov)
-        state_new = self.state +  np.matmul(K, innov)
-
-        if True: #LA.det(cov_new) < 1e6:
-            self.cov = cov_new
-        self.state = np.clip(state_new, self.limit[0], self.limit[1])
-
+        self.cov = np.matmul(C, self.cov)
+        self.state = np.clip(self.state +  np.matmul(K, innov), self.limit[0], self.limit[1])
 
 class UKFbelief(object):
     """
