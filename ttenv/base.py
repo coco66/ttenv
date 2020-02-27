@@ -50,6 +50,7 @@ class TargetTrackingBase(gym.Env):
         self.reset_num = 0
 
     def reset(self, **kwargs):
+        self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
@@ -77,13 +78,16 @@ class TargetTrackingBase(gym.Env):
         observed = []
         for i in range(self.num_targets):
             # Update a target
-            self.targets[i].update(self.agent.state[:2])
+            if self.has_discovered[i]:
+                self.targets[i].update(self.agent.state[:2])
             # Observe
             observation = self.observation(self.targets[i])
             observed.append(observation[0])
             # If observed, update a belief.
             if observation[0]:
                 self.belief_targets[i].update(observation[1], self.agent.state)
+                if not(self.has_discovered[i]):
+                    self.has_discovered[i] = 1
             # Predict the target for the next step.
             self.belief_targets[i].predict()
         return observed

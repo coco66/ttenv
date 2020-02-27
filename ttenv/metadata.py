@@ -106,8 +106,8 @@ METADATA_v5={
         'sensor_b_sd': 0.01, # sensor bearing noise.
         'target_init_cov': 30.0, # initial target diagonal Covariance.
         'target_init_vel': [0.0, 0.0], # target's initial velocity.
-        'target_speed_limit': 4.0, # speed limit of targets.
-        'lin_dist_range_a2b':(0.0, 15.0),
+        'target_speed_limit': 3.0, # speed limit of targets.
+        'lin_dist_range_a2b':(3.0, 15.0),
         'ang_dist_range_a2b':(-np.pi, np.pi),
         'lin_dist_range_b2t':(0.0, 15.0),
         'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
