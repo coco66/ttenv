@@ -157,9 +157,17 @@ class TargetTrackingEnv1(TargetTrackingBase):
         #                     collision_func=lambda x: self.MAP.is_collision(x))
         #                     for _ in range(num_targets)]
 
-    def set_targets(self, known_noise=True):
-        self.target_speed_limit = np.random.choice([1.0, 3.0])
-        self.const_q = np.random.choice([0.001, 0.1, 1.0])
+    def set_targets(self, target_speed_limit=None, const_q=None, known_noise=True, **kwargs):
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+
+        if const_q is None:
+            self.const_q = np.random.choice([0.001, 0.1, 1.0])
+        else:
+            self.const_q = const_q
+
         self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
                                 np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
         rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
@@ -206,7 +214,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
         self.state = np.array(self.state, dtype=np.float32)
 
     def reset(self, **kwargs):
-        self.set_targets()
+        self.set_targets(**kwargs)
         # Initialize
         init_pose = super().reset(**kwargs)
         self.agent.reset(init_pose['agent'])
