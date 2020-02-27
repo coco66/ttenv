@@ -163,7 +163,7 @@ class TargetTrackingBase(gym.Env):
         is_valid = not(self.MAP.is_collision(rand_xy_global))
         return is_valid, [rand_xy_global[0], rand_xy_global[1], rand_ang + frame_theta]
 
-    def add_history_to_state(self, state):
+    def add_history_to_state(self, state, num_target_dep_vars, num_target_indep_vars, logdetcov_idx):
         """
         Replacing the current logetcov value to a sequence of the recent few
         logdetcov values for each target.
@@ -172,16 +172,13 @@ class TargetTrackingBase(gym.Env):
             2) current logdetcov index at each target dependent vector
             3) the number of target independent variables
         """
-        NUM_TARGET_DEP_VARS = 6
-        NUM_TARGET_INDEP_VARS = 2
-        LOGDETCOV_IDX = 4
         new_state = []
         for i in range(self.num_targets):
-            self.logdetcov_history[i].add(state[NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX])
-            new_state = np.concatenate((new_state, state[NUM_TARGET_DEP_VARS*i: NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX]))
+            self.logdetcov_history[i].add(state[num_target_dep_vars*i+logdetcov_idx])
+            new_state = np.concatenate((new_state, state[num_target_dep_vars*i: num_target_dep_vars*i+logdetcov_idx]))
             new_state = np.concatenate((new_state, self.logdetcov_history[i].get_values()))
-            new_state = np.concatenate((new_state, state[NUM_TARGET_DEP_VARS*i+LOGDETCOV_IDX+1:NUM_TARGET_DEP_VARS*(i+1)]))
-        new_state = np.concatenate((new_state, state[-NUM_TARGET_INDEP_VARS:]))
+            new_state = np.concatenate((new_state, state[num_target_dep_vars*i+logdetcov_idx+1:num_target_dep_vars*(i+1)]))
+        new_state = np.concatenate((new_state, state[-num_target_indep_vars:]))
         return new_state
 
     def set_target_path(self, target_path):

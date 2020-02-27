@@ -12,33 +12,41 @@ import ttenv.util as util
 from ttenv.target_tracking import TargetTrackingEnv1
 from ttenv.target_imtracking import TargetTrackingEnv5, TargetTrackingEnv8
 
+NUM_TARGET_DEP_VARS = 6
+NUM_TARGET_INDEP_VARS = 2
+LOGDETCOV_IDX = 4
+HISTORY_LENGTH = 3
+
+def get_state_limit(state_limit, num_targets):
+    state_limit_l = np.concatenate((state_limit[0][:LOGDETCOV_IDX],
+                            HISTORY_LENGTH * [state_limit[0][LOGDETCOV_IDX]],
+                            [state_limit[0][LOGDETCOV_IDX+1]]))
+    state_limit_h = np.concatenate((state_limit[1][:LOGDETCOV_IDX],
+                            HISTORY_LENGTH * [state_limit[1][LOGDETCOV_IDX]],
+                            [state_limit[1][LOGDETCOV_IDX+1]]))
+    new_state_limit = [np.concatenate((state_limit_l*num_targets, state_limit[0][-2:])),
+                           np.concatenate((state_limit_h*num_targets, state_limit[1][-2:]))]
+    return new_state_limit
+
 class TargetTrackingEnv1_SEQ(TargetTrackingEnv1):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
                 known_noise=True, target_path_dir=None, **kwargs):
         TargetTrackingEnv1.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v1_SEQ'
-        self.history_length = 5
-        rel_vel_limit = self.limit['state'][1][2]
-        state_limit_l = [0.0, -np.pi, -rel_vel_limit, -10*np.pi]
-        state_limit_l.extend(self.history_length * [-50.0])
-        state_limit_l.append(0.0)
-        state_limit_h = [600.0, np.pi, rel_vel_limit, 10*np.pi]
-        state_limit_h.extend(self.history_length * [50.0])
-        state_limit_h.append(2.0)
-        self.limit['state'] = [np.concatenate((state_limit_l*num_targets, [0.0, -np.pi])),
-                               np.concatenate((state_limit_h*num_targets, [self.sensor_r, np.pi]))]
+        self.history_length = HISTORY_LENGTH
+        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
 
     def reset(self, **kwargs):
         state = super().reset(**kwargs)
         self.logdetcov_history =[Storage(max_capacity = self.history_length,
             init_value = np.log(LA.det(self.belief_targets[i].cov))) for i in range(self.num_targets)]
-        return self.add_history_to_state(state)
+        return self.add_history_to_state(state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
 
     def step(self, action):
         state, reward, done, info = super().step(action)
-        new_state = self.add_history_to_state(state)
+        new_state = self.add_history_to_state(state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
         return new_state, reward, done, info
 
 class TargetTrackingEnv5_SEQ(TargetTrackingEnv5):
@@ -47,15 +55,8 @@ class TargetTrackingEnv5_SEQ(TargetTrackingEnv5):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v5_SEQ'
-        self.history_length = 5
-        state_limit_l = self.limit['state'][0][:4]
-        state_limit_l.extend(self.history_length * [self.limit['state'][0][5]])
-        state_limit_l.append(0.0)
-        state_limit_h = self.limit['state'][1][:4]
-        state_limit_h.extend(self.history_length * [self.limit['state'][1][5]])
-        state_limit_h.append(2.0)
-        self.limit['state'] = [np.concatenate((state_limit_l*num_targets, self.limit['state'][0][-2:])),
-                               np.concatenate((state_limit_h*num_targets, self.limit['state'][1][-2:]))]
+        self.history_length = HISTORY_LENGTH
+        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(np.concatenate((
             np.zeros(im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(im_size*im_size,), self.limit['state'][1])),
@@ -66,13 +67,13 @@ class TargetTrackingEnv5_SEQ(TargetTrackingEnv5):
         im_state = state[:-len(self.state)]
         self.logdetcov_history =[Storage(max_capacity = self.history_length,
             init_value = np.log(LA.det(self.belief_targets[i].cov))) for i in range(self.num_targets)]
-        new_state = self.add_history_to_state(self.state)
+        new_state = self.add_history_to_state(self.state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state))
 
     def step(self, action):
         state, reward, done, info = super().step(action)
         im_state = state[:-len(self.state)]
-        new_state = self.add_history_to_state(self.state)
+        new_state = self.add_history_to_state(self.state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state)), reward, done, info
 
 class TargetTrackingEnv8_SEQ(TargetTrackingEnv8):
@@ -81,15 +82,8 @@ class TargetTrackingEnv8_SEQ(TargetTrackingEnv8):
         TargetTrackingEnv8.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v8_SEQ'
-        self.history_length = 5
-        state_limit_l = self.limit['state'][0][:4]
-        state_limit_l.extend(self.history_length * [self.limit['state'][0][5]])
-        state_limit_l.append(0.0)
-        state_limit_h = self.limit['state'][1][:4]
-        state_limit_h.extend(self.history_length * [self.limit['state'][1][5]])
-        state_limit_h.append(2.0)
-        self.limit['state'] = [np.concatenate((state_limit_l*num_targets, self.limit['state'][0][-2:])),
-                               np.concatenate((state_limit_h*num_targets, self.limit['state'][1][-2:]))]
+        self.history_length = HISTORY_LENGTH
+        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(np.concatenate((
             -np.ones(5*im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
@@ -100,13 +94,13 @@ class TargetTrackingEnv8_SEQ(TargetTrackingEnv8):
         im_state = state[:-len(self.state)]
         self.logdetcov_history =[Storage(max_capacity = self.history_length,
             init_value = np.log(LA.det(self.belief_targets[i].cov))) for i in range(self.num_targets)]
-        new_state = self.add_history_to_state(self.state)
+        new_state = self.add_history_to_state(self.state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state))
 
     def step(self, action):
         state, reward, done, info = super().step(action)
         im_state = state[:-len(self.state)]
-        new_state = self.add_history_to_state(self.state)
+        new_state = self.add_history_to_state(self.state, NUM_TARGET_DEP_VARS, NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state)), reward, done, info
 
 class Storage():
