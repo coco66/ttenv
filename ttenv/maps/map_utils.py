@@ -133,7 +133,7 @@ class GridMap(object):
             return ro_min_t, 0.0
 
     def get_closest_obstacle(self, odom, ang_res=0.05,
-                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'],
+                fov=2*np.pi, r_max=METADATA['sensor_r'],
                 update_visit_freq=True):
         """
         Return radial and angular distances of the closest obstacle/boundary cell
