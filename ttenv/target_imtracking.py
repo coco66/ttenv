@@ -247,6 +247,7 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
 
     def reset(self, **kwargs):
         _ = super().reset(**kwargs)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
