@@ -175,11 +175,10 @@ class TargetTrackingEnv1(TargetTrackingBase):
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(num_targets)]
-                            
+
     def set_targets(self, known_noise=True):
         self.target_speed_limit = np.random.choice([0.2, 2.0, 4.0])
         self.const_q = np.random.choice([0.02, 0.2, 2.0])
-        print(self.target_speed_limit, self.const_q)
         self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
                                 np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
         rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
