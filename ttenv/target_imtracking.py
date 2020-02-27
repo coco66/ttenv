@@ -47,24 +47,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
             dtype=np.float32)
 
     def reset(self, **kwargs):
-        self.state = []
-        self.num_collisions = 0
-        init_pose = self.get_init_pose(**kwargs)
-        self.agent.reset(init_pose['agent'])
-        for i in range(self.num_targets):
-            self.belief_targets[i].reset(
-                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
-                        init_cov=self.target_init_cov)
-            self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                 self.agent.state[:2], self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            obs = self.observation(self.targets[i])
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, float(obs[0])])
-
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        _ = super().reset(**kwargs)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
@@ -74,43 +57,14 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
         return obs
 
     def step(self, action):
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        self.num_collisions += int(is_col)
-        observed = []
-        for i in range(self.num_targets):
-            self.targets[i].update(self.agent.state[:2])
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            self.belief_targets[i].predict() # Belief state at t+1
-            if obs[0]: # if observed, update the target belief.
-                self.belief_targets[i].update(obs[1], self.agent.state)
-
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
-        self.state = []
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
-        for i in range(self.num_targets):
-            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                 self.agent.state[:2], self.agent.state[2])
-            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
-                                    self.belief_targets[i].state[:2],
-                                    self.belief_targets[i].state[2:],
-                                    self.agent.state[:2], self.agent.state[-1],
-                                    action_vw[0], action_vw[1])
-            self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
-                np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
-        self.state.extend([obstacles_pt[0], obstacles_pt[1]])
-        self.state = np.array(self.state)
+        _, reward, done, info = super().step(action)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
         # For display purpose
         self.local_map = [self.local_map]
         self.local_mapmin_g = [self.local_mapmin_g]
-        return obs, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        return obs, reward, done, info
 
 class TargetTrackingEnv6(TargetTrackingEnv5):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
@@ -305,7 +259,7 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
         return np.concatenate((norm_local_map, norm_local_visit_map, self.state))
 
     def step(self, action):
-        obs, reward, done, info = super().step(action)
+        _, reward, done, info = super().step(action)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map[0].flatten() - 0.5) * 2

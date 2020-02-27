@@ -372,7 +372,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                                                 xy_base=self.agent.state[:2],
                                                 theta_base=self.agent.state[2])
             logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
+            obs = self.observation(self.targets[i])
+            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, float(obs[0])])
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
