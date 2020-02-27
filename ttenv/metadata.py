@@ -112,7 +112,7 @@ METADATA_v5={
         'lin_dist_range_b2t':(0.0, 15.0),
         'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
         'margin': 1.0, # a marginal distance btw targets and the agent.
-        'margin2wall': 0.2, # a marginal distance from a wall.
+        'margin2wall': 0.5, # a marginal distance from a wall.
         'action_v': [3, 2, 1, 0], # action primitives - linear velocities.
         'action_w': [np.pi/2, 0, -np.pi/2], # action primitives - angular velocities.
         'const_q': 0.2, # target noise constant in beliefs.
