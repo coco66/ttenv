@@ -322,16 +322,16 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
             is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v1'
         self.target_dim = 4
-        self.target_init_vel = METADATA['target_init_vel'] * np.ones((2,))
+        self.target_init_vel = np.array(METADATA['target_init_vel'])
 
         # LIMIT
         self.limit = {} # 0: low, 1:highs
         self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-METADATA['target_vel_limit'], -METADATA['target_vel_limit']])),
-                                np.concatenate((self.MAP.mapmax, [METADATA['target_vel_limit'], METADATA['target_vel_limit']]))]
-        rel_vel_limit = METADATA['target_vel_limit'] + METADATA['action_v'][0] # Maximum relative speed
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_vel_limit, -10*np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi])),
-                               np.concatenate(([600.0, np.pi, rel_vel_limit, 10*np.pi,  50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-METADATA['target_speed_limit'], -METADATA['target_speed_limit']])),
+                                np.concatenate((self.MAP.mapmax, [METADATA['target_speed_limit'], METADATA['target_speed_limit']]))]
+        rel_speed_limit = METADATA['target_speed_limit'] + METADATA['action_v'][0] # Maximum relative speed
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
         self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
                                         [[0,0,1,0],[0,0,0,1]]))
@@ -533,16 +533,16 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
             map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v4'
         self.target_dim = 5
-        self.target_init_vel = METADATA['target_init_vel'] * np.ones((2,))
+        self.target_init_vel = np.array(METADATA['target_init_vel'])
 
         # LIMIT
         self.limit = {} # 0: low, 1:highs
-        rel_vel_limit = METADATA['target_vel_limit'] + METADATA['action_v'][0] # Maximum relative speed
+        rel_speed_limit = METADATA['target_speed_limit'] + METADATA['action_v'][0] # Maximum relative speed
         self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['target'] = [np.concatenate((self.MAP.mapmin, [-np.pi, -METADATA['target_vel_limit'], -np.pi])),
-                                            np.concatenate((self.MAP.mapmax, [np.pi, METADATA['target_vel_limit'], np.pi]))]
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_vel_limit, -10*np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi ])),
-                               np.concatenate(([600.0, np.pi, rel_vel_limit, 10*np.pi, 50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin, [-np.pi, -METADATA['target_speed_limit'], -np.pi])),
+                                            np.concatenate((self.MAP.mapmax, [np.pi, METADATA['target_speed_limit'], np.pi]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi ])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi, 50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
         self.target_noise_cov = np.zeros((self.target_dim, self.target_dim))
         for i in range(3):

@@ -78,7 +78,7 @@ class AgentDoubleInt2D_Nonlinear(AgentDoubleInt2D):
 
         if self.obs_check_func is not None:
             del_vx, del_vy = self.obstacle_detour_maneuver(
-                    r_margin=METADATA['target_vel_limit']*self.sampling_period*2)
+                    r_margin=METADATA['target_speed_limit']*self.sampling_period*2)
             new_state[2] += del_vx
             new_state[3] += del_vy
 
@@ -110,7 +110,7 @@ class AgentDoubleInt2D_Nonlinear(AgentDoubleInt2D):
         odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
         obs_pos = self.obs_check_func(odom)
         speed = np.sqrt(np.sum(self.state[2:]**2))
-        rot_ang = np.pi/2 * (1. + 1./(1. + np.exp(-(speed-0.5*METADATA['target_vel_limit']))))
+        rot_ang = np.pi/2 * (1. + 1./(1. + np.exp(-(speed-0.5*METADATA['target_speed_limit']))))
         if obs_pos is not None:
             acc = (1. + np.cos(obs_pos[1])) / max(0.5, obs_pos[0] - r_margin)
             th = obs_pos[1] - rot_ang if obs_pos[1] >= 0 else obs_pos[1] + rot_ang
