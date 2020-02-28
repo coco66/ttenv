@@ -94,7 +94,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        self.MAP.reset_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                             self.im_size, self.agent.state, get_visit_freq=True)
@@ -172,7 +172,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        self.MAP.reset_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
                                                     self.im_size, self.agent.state)
@@ -247,8 +247,8 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
 
     def reset(self, **kwargs):
         _ = super().reset(**kwargs)
-        self.MAP.reset_visit_freq_map(decay=0.95)
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        self.MAP.reset_visit_freq_map()
+        self.MAP.update_visit_freq_map(1.0, self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
@@ -261,6 +261,11 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
 
     def step(self, action):
         _, reward, done, info = super().step(action)
+
+        b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
+        decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.5))
+        self.MAP.update_visit_freq_map(decay_factor, self.agent.state)
+
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
