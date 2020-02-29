@@ -134,28 +134,28 @@ class TargetTrackingEnv1(TargetTrackingBase):
         # Build a robot
         self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
                             lambda x: self.MAP.is_collision(x))
-        # # Build targets
-        # self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
-        #                                 [[0,0,1,0],[0,0,0,1]]))
-        # self.target_noise_cov = self.const_q * np.concatenate((
-        #                     np.concatenate((self.sampling_period**3/3*np.eye(2), self.sampling_period**2/2*np.eye(2)), axis=1),
-        #                 np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
-        # if known_noise:
-        #     self.target_true_noise_sd = self.target_noise_cov
-        # else:
-        #     self.target_true_noise_sd = self.const_q_true * np.concatenate((
-        #                 np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period/2*np.eye(2)), axis=1),
-        #                 np.concatenate((self.sampling_period/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
-        #
-        # self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim, self.sampling_period, self.limit['target'],
-        #                     lambda x: self.MAP.is_collision(x),
-        #                     W=self.target_true_noise_sd, A=self.targetA,
-        #                     obs_check_func=lambda x: self.MAP.get_closest_obstacle(
-        #                         x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(num_targets)]
-        # self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
-        #                     W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-        #                     collision_func=lambda x: self.MAP.is_collision(x))
-        #                     for _ in range(num_targets)]
+        # Build targets
+        self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
+                                        [[0,0,1,0],[0,0,0,1]]))
+        self.target_noise_cov = self.const_q * np.concatenate((
+                            np.concatenate((self.sampling_period**3/3*np.eye(2), self.sampling_period**2/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+        if known_noise:
+            self.target_true_noise_sd = self.target_noise_cov
+        else:
+            self.target_true_noise_sd = self.const_q_true * np.concatenate((
+                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+
+        self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim, self.sampling_period, self.limit['target'],
+                            lambda x: self.MAP.is_collision(x),
+                            W=self.target_true_noise_sd, A=self.targetA,
+                            obs_check_func=lambda x: self.MAP.get_closest_obstacle(
+                                x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(num_targets)]
+        self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
+                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
+                            collision_func=lambda x: self.MAP.is_collision(x))
+                            for _ in range(num_targets)]
 
     def set_targets(self, target_speed_limit=None, const_q=None, known_noise=True, **kwargs):
         if target_speed_limit is None:
