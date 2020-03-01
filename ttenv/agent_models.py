@@ -112,7 +112,7 @@ class AgentDoubleInt2D_Nonlinear(AgentDoubleInt2D):
         speed = np.sqrt(np.sum(self.state[2:]**2))
         rot_ang = np.pi/2 * (1. + 1./(1. + np.exp(-(speed-0.5*METADATA['target_speed_limit']))))
         if obs_pos is not None:
-            acc = (1. + np.cos(obs_pos[1])) / max(0.5, obs_pos[0] - r_margin)
+            acc = max(0.0, speed * np.cos(obs_pos[1])) / max(METADATA['margin2wall'], obs_pos[0] - r_margin)
             th = obs_pos[1] - rot_ang if obs_pos[1] >= 0 else obs_pos[1] + rot_ang
             del_vx = acc * np.cos(th + odom[2]) * self.sampling_period
             del_vy = acc * np.sin(th + odom[2]) * self.sampling_period
