@@ -200,6 +200,9 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
             dtype=np.float32)
 
     def reset(self, **kwargs):
+        if 'const_q' in kwargs and 'target_speed_limit' in kwargs:
+            self.set_targets(target_speed_limit=kwargs['target_speed_limit'], const_q=kwargs['const_q'])
+        self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)

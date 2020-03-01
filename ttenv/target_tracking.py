@@ -359,6 +359,9 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                             for _ in range(num_targets)]
 
     def reset(self, **kwargs):
+        if 'const_q' in kwargs and 'target_speed_limit' in kwargs:
+            self.set_targets(target_speed_limit=kwargs['target_speed_limit'], const_q=kwargs['const_q'])
+        self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
         init_pose = self.get_init_pose(**kwargs)
@@ -417,6 +420,45 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
         return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def set_targets(self, target_speed_limit=None, const_q=None, known_noise=True, **kwargs):
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+
+        if const_q is None:
+            self.const_q = np.random.choice([0.001, 0.1, 1.0])
+        else:
+            self.const_q = const_q
+
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
+                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        # Build targets
+        self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
+                                        [[0,0,1,0],[0,0,0,1]]))
+        self.target_noise_cov = self.const_q * np.concatenate((
+                            np.concatenate((self.sampling_period**3/3*np.eye(2), self.sampling_period**2/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+        if known_noise:
+            self.target_true_noise_sd = self.target_noise_cov
+        else:
+            self.target_true_noise_sd = self.const_q_true * np.concatenate((
+                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+
+        self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim, self.sampling_period, self.limit['target'],
+                            lambda x: self.MAP.is_collision(x),
+                            W=self.target_true_noise_sd, A=self.targetA,
+                            obs_check_func=lambda x: self.MAP.get_closest_obstacle(
+                                x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(self.num_targets)]
+        self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
+                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
+                            collision_func=lambda x: self.MAP.is_collision(x))
+                            for _ in range(self.num_targets)]
 
 class TargetTrackingEnv2(TargetTrackingEnv1):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
