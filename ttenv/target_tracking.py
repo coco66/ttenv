@@ -107,7 +107,7 @@ class TargetTrackingEnv0(TargetTrackingBase):
             self.targets[i].reset(np.array(init_pose['targets'][i][:self.target_dim]))
 
         # RL state
-        observed = self.update_target_and_belief()
+        observed = self.observe_and_update_belief()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
@@ -224,7 +224,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
                         init_cov=self.target_init_cov)
             self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
         # RL state
-        observed = self.update_target_and_belief()
+        observed = self.observe_and_update_belief()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)

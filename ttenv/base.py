@@ -8,6 +8,7 @@ import os
 from ttenv.maps import map_utils
 from ttenv.metadata import METADATA
 import ttenv.util as util
+from ttenv.agent_models import Agent2DFixedPath
 
 class TargetTrackingBase(gym.Env):
     def __init__(self, num_targets=1, map_name='empty',
@@ -63,8 +64,13 @@ class TargetTrackingBase(gym.Env):
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         self.num_collisions += int(is_col)
 
+        for i in range(self.num_targets):
+            # Update a target
+            if self.has_discovered[i]:
+                self.targets[i].update(self.agent.state[:2])
+
         # The targets move (t -> t+1) and are observed by the agent.
-        observed = self.update_target_and_belief()
+        observed = self.observe_and_update_belief()
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
                                                                 is_col=is_col)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
@@ -74,12 +80,8 @@ class TargetTrackingBase(gym.Env):
         self.update_state(observed, obstacles_pt, action_vw)
         return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
-    def update_target_and_belief(self):
+    def observe_and_update_belief(self):
         observed = []
-        for i in range(self.num_targets):
-            # Update a target
-            if self.has_discovered[i]:
-                self.targets[i].update(self.agent.state[:2])
             # Observe
             observation = self.observation(self.targets[i])
             observed.append(observation[0])
