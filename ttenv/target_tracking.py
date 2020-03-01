@@ -379,7 +379,6 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
         return self.state
 
     def step(self, action):

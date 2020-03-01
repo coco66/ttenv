@@ -47,24 +47,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
             dtype=np.float32)
 
     def reset(self, **kwargs):
-        self.state = []
-        self.num_collisions = 0
-        init_pose = self.get_init_pose(**kwargs)
-        self.agent.reset(init_pose['agent'])
-        for i in range(self.num_targets):
-            self.belief_targets[i].reset(
-                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
-                        init_cov=self.target_init_cov)
-            self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                 self.agent.state[:2], self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            obs = self.observation(self.targets[i])
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, float(obs[0])])
-
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        _ = super().reset(**kwargs)
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
@@ -296,6 +279,7 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
 
     def reset(self, **kwargs):
         _ = super().reset(**kwargs)
+        self.MAP.reset_visit_freq_map(decay=0.95)
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
