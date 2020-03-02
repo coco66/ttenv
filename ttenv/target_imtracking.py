@@ -228,16 +228,15 @@ class TargetTrackingEnv7(TargetTrackingEnv1):
                                                     self.im_size, self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
-        norm_local_map = (self.local_map.flatten() - 0.5) * 2
-        norm_local_visit_map = local_visit_maps.flatten() - 1.0
+        # normalize the maps
+        self.local_map = [(self.local_map - 0.5) * 2]
+        for i in range(4):
+            self.local_map.append(local_visit_maps[i] - 1.0)
 
-        # For display purpose
-        self.local_map = [self.local_map]
-        self.local_map.extend(local_visit_maps)
         self.local_mapmin_g = [self.local_mapmin_g]
         self.local_mapmin_g.extend(local_mapmin_gs)
 
-        return np.concatenate((norm_local_map, norm_local_visit_map))
+        return np.array(self.local_map).T.flatten()
 
 class TargetTrackingEnv8(TargetTrackingEnv5):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
