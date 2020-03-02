@@ -27,7 +27,8 @@ class Display2D(Wrapper):
         self.fig = plt.figure(self.figID)
         self.local_view = local_view
         if local_view:
-            self.fig0 = [plt.figure(self.figID+1+i) for i in range(local_view)]
+            self.fig0 = plt.figure(self.figID+1)
+            self.local_idx_map = [(1,1),(1,0),(1,2),(0,1),(2,1)]
         self.n_frames = 0
         self.skip = skip
         self.c_cf = np.sqrt(-2*np.log(1-confidence))
@@ -54,8 +55,12 @@ class Display2D(Wrapper):
             im = None
 
             if self.local_view:
-                [f0.clf() for f0 in self.fig0]
-                ax0 = [f0.subplots() for f0 in self.fig0]
+                if self.local_view == 1:
+                    ax0 = self.fig0.subplots()
+                elif self.local_view == 5:
+                    ax0 = self.fig0.subplots(3,3)
+                else:
+                    raise ValueError('Invalid number of local_view.')
 
             im = ax.imshow(self.map, cmap='gray_r', origin='lower',
                                         extent=[self.mapmin[0], self.mapmax[0],
@@ -113,7 +118,7 @@ class Display2D(Wrapper):
 
             if self.local_view:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
-                [ax0[j].imshow(
+                [ax0[self.local_idx_map[j][0]][self.local_idx_map[j][1]].imshow(
                         np.reshape(self.env_core.local_map[j], (im_size,im_size)),
                         cmap='gray_r', origin='lower', vmin=-1, vmax=1,
                         extent=[local_mapmin[0], -local_mapmin[0],
