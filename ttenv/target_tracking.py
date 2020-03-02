@@ -364,6 +364,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
+
+        # Reset the agent, targets, and beliefs with sampled initial positions.
         init_pose = self.get_init_pose(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
@@ -371,14 +373,16 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                         init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
                         init_cov=self.target_init_cov)
             self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
 
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
+        # The targets are observed by the agent (z_0) and the beliefs are updated (b_0).
+        observed = self.observe_and_update_belief()
+
+        # Predict the target for the next step, b_1|0.
+        self.belief_targets[i].predict()
+
+        # Compute the RL state.
+        self.state_func([0.0, 0.0], observed)
+
         return self.state
 
     def step(self, action):
@@ -387,26 +391,32 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         self.num_collisions += int(is_col)
 
-        # The targets move (t -> t+1) and are observed by the agent.
-        observed = []
+        # The targets move (t -> t+1)
         for i in range(self.num_targets):
             if self.has_discovered[i]:
                 self.targets[i].update(self.agent.state[:2])
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            self.belief_targets[i].predict() # Belief state at t+1
-            if obs[0]: # if observed, update the target belief.
-                self.belief_targets[i].update(obs[1], self.agent.state)
-                if not(self.has_discovered[i]):
-                    self.has_discovered[i] = 1
 
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        # The targets are observed by the agent (z_t+1) and the beliefs are updated.
+        observed = self.observe_and_update_belief()
+
+        # Compute a reward from b_t+1|t+1 or b_t+1|t.
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
                                                                 is_col=is_col)
-        self.state = []
+        # Predict the target for the next step, b_t+2|t+1
+        self.belief_targets[i].predict()
+
+        # Compute the RL state.
+        self.state_func(action_vw, observed)
+
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def state_func(self, action_vw, observed):
+        # Find the closest obstacle coordinate.
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
+
+        self.state = []
         for i in range(self.num_targets):
             r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
@@ -421,7 +431,17 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                                     float(observed[i])])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+
+    def observe_and_update_belief(self):
+        observed = []
+        for i in range(self.num_targets):
+            observation = self.observation(self.targets[i])
+            observed.append(observation[0])
+            if observation[0]: # if observed, update the target belief.
+                self.belief_targets[i].update(observation[1], self.agent.state)
+                if not(self.has_discovered[i]):
+                    self.has_discovered[i] = 1
+        return observed
 
     def set_targets(self, target_speed_limit=None, const_q=None, known_noise=True, **kwargs):
         if target_speed_limit is None:
