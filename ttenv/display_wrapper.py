@@ -115,7 +115,7 @@ class Display2D(Wrapper):
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
                 [ax0[j].imshow(
                         np.reshape(self.env_core.local_map[j], (im_size,im_size)),
-                        cmap='gray_r', origin='lower',
+                        cmap='gray_r', origin='lower', vmin=-1, vmax=1,
                         extent=[local_mapmin[0], -local_mapmin[0],
                             0.0, -local_mapmin[0]*2]) for j in range(self.local_view)]
             if not record :
