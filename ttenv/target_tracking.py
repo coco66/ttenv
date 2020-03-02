@@ -390,13 +390,16 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         # The targets move (t -> t+1) and are observed by the agent.
         observed = []
         for i in range(self.num_targets):
-            self.targets[i].update(self.agent.state[:2])
+            if self.has_discovered[i]:
+                self.targets[i].update(self.agent.state[:2])
             # Observe
             obs = self.observation(self.targets[i])
             observed.append(obs[0])
             self.belief_targets[i].predict() # Belief state at t+1
             if obs[0]: # if observed, update the target belief.
                 self.belief_targets[i].update(obs[1], self.agent.state)
+                if not(self.has_discovered[i]):
+                    self.has_discovered[i] = 1
 
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
