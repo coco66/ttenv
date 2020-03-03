@@ -361,7 +361,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
-                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.ones(2))),
+                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
                         init_cov=self.target_init_cov)
             self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
 
