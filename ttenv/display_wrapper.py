@@ -130,7 +130,14 @@ class Display2D(Wrapper):
             ax.set_aspect('equal','box')
             ax.grid()
 
-            if self.local_view:
+            if self.local_view==1:
+                local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
+                ax0.imshow(
+                        np.reshape(self.env_core.local_map[j], (im_size,im_size)),
+                        cmap='gray_r', origin='lower', vmin=-1, vmax=1,
+                        extent=[local_mapmin[0], -local_mapmin[0],
+                            0.0, -local_mapmin[0]*2])
+            elif self.local_view==5:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
                 [ax0[self.local_idx_map[j][0]][self.local_idx_map[j][1]].imshow(
                         np.reshape(self.env_core.local_map[j], (im_size,im_size)),
@@ -164,11 +171,10 @@ class Video2D(Wrapper):
         fname = os.path.join(dirname, 'train_%d.mp4'%fnum)
         self.moviewriter.setup(fig=env.fig, outfile=fname, dpi=dpi)
         if self.local_view:
-            self.moviewriter0 = []
-            for j in range(self.local_view):
-                self.moviewriter0.append(animation.FFMpegWriter())
-                fname0 = os.path.join(dirname, 'train_%d_local_%d.mp4'%(fnum, j))
-                self.moviewriter0[j].setup(fig=env.fig0[j], outfile=fname0, dpi=dpi)
+            self.moviewriter0 = animation.FFMpegWriter()
+            self.moviewriter0.setup(fig=env.fig0,
+                outfile=os.path.join(dirname, 'train_%d_local.mp4'%fnum),
+                dpi=dpi)
         self.n_frames = 0
 
     def render(self, *args, **kwargs):
@@ -177,7 +183,7 @@ class Video2D(Wrapper):
             self.env.render(record=True, *args, **kwargs)
         self.moviewriter.grab_frame()
         if self.local_view:
-            [mv.grab_frame() for mv in self.moviewriter0]
+            self.moviewriter0.grab_frame()
         self.n_frames += 1
 
     def reset(self, **kwargs):
@@ -186,4 +192,4 @@ class Video2D(Wrapper):
     def finish(self):
         self.moviewriter.finish()
         if self.local_view:
-            [m.finish() for m in self.moviewriter0]
+            self.moviewriter0.finish()
