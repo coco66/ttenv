@@ -73,14 +73,8 @@ class Display2D(Wrapper):
 
             for i in range(num_targets):
                 ax.plot(self.traj_y[i][0], self.traj_y[i][1], 'r.', markersize=2)
-                ax.plot(target_true_pos[i][0], target_true_pos[i][1], marker='o',
-                        markersize=5, linestyle='None', markerfacecolor='r',
-                        markeredgecolor='r')
-                # Belief on target
-                ax.plot(target_b_state[i][0], target_b_state[i][1], marker='o',
-                        markersize=10, linewidth=5, markerfacecolor='none',
-                        markeredgecolor='g')
-                # Assuming that the first and the second dimension of the target state vector correspond to xy-coordinate.
+                # Belief on target - Assuming that the first and the second dimension
+                # of the target state vector correspond to xy-coordinate.
                 eig_val, eig_vec = LA.eig(target_cov[i][:2,:2])
                 belief_target = patches.Ellipse(
                             (target_b_state[i][0], target_b_state[i][1]),
@@ -90,6 +84,26 @@ class Display2D(Wrapper):
                             np.real(eig_vec[0][0])) ,fill=True, zorder=2,
                             facecolor='g', alpha=0.5)
                 ax.add_patch(belief_target)
+
+                if target_cov[i].shape[0]==4: # For Velocity
+                    eig_val, eig_vec = LA.eig(target_cov[i][2:,2:])
+                    belief_target_vel = patches.Ellipse(
+                                (target_b_state[i][0], target_b_state[i][1]),
+                                2*np.sqrt(eig_val[0])*self.c_cf,
+                                2*np.sqrt(eig_val[1])*self.c_cf,
+                                angle = 180/np.pi*np.arctan2(np.real(eig_vec[0][1]),
+                                np.real(eig_vec[0][0])) ,fill=True, zorder=2,
+                                facecolor='m', alpha=0.5)
+                    ax.add_patch(belief_target_vel)
+
+                ax.plot(target_b_state[i][0], target_b_state[i][1], marker='o',
+                        markersize=10, linewidth=5, markerfacecolor='none',
+                        markeredgecolor='g')
+
+                # The real targets
+                ax.plot(target_true_pos[i][0], target_true_pos[i][1], marker='o',
+                        markersize=5, linestyle='None', markerfacecolor='r',
+                        markeredgecolor='r')
 
             if self.local_view:
                 im_size = self.env_core.im_size
