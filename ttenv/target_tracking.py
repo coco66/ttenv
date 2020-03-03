@@ -349,7 +349,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                             lambda x: self.MAP.is_collision(x),
                             W=self.target_true_noise_sd, A=self.targetA,
                             obs_check_func=lambda x: self.MAP.get_closest_obstacle(
-                                x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(num_targets)]
+                                x, fov=2*np.pi, r_max=10e2)) for _ in range(num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
@@ -473,7 +473,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
                             lambda x: self.MAP.is_collision(x),
                             W=self.target_true_noise_sd, A=self.targetA,
                             obs_check_func=lambda x: self.MAP.get_closest_obstacle(
-                                x, fov=2*np.pi, r_max=10e2, update_visit_freq=False)) for _ in range(self.num_targets)]
+                                x, fov=2*np.pi, r_max=10e2)) for _ in range(self.num_targets)]
         self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
                             W=self.target_noise_cov, obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))

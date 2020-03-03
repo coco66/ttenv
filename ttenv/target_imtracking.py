@@ -96,7 +96,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
 
         self.state.extend([self.sensor_r, np.pi])
         self.state = np.array(self.state)
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        self.MAP.reset_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         self.local_map, self.local_mapmin_g, self.local_visit_freq_map = self.MAP.local_map(
                             self.im_size, self.agent.state, get_visit_freq=True)
@@ -158,7 +158,7 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
             dtype=np.float32)
 
     def reset(self, **kwargs):
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        self.MAP.reset_visit_freq_map()
         return super().reset(**kwargs)
 
     def state_func(self, action_vw, observed):
@@ -185,8 +185,13 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         self.state = np.array(self.state)
 
     def map_state_func(self):
+        # Update the visit frequency map.
+        b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
+        decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.7))
+        self.MAP.update_visit_freq_map(self.agent.state, decay_factor)
+
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
-                                                    self.im_size, self.agent.state)
+                                                self.im_size, self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         # normalize the maps
@@ -211,12 +216,17 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
             dtype=np.float32)
 
     def reset(self, **kwargs):
-        self.MAP.reset_visit_freq_map(decay=0.95)
+        self.MAP.reset_visit_freq_map()
         return super().reset(**kwargs)
 
     def map_state_func(self):
+        # Update the visit frequency map.
+        b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
+        decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.7))
+        self.MAP.update_visit_freq_map(self.agent.state, decay_factor)
+
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
-                                                    self.im_size, self.agent.state)
+                                                self.im_size, self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         # normalize the maps
