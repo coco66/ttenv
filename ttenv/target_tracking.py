@@ -166,17 +166,11 @@ class TargetTrackingEnv0(gym.Env):
                             ang_dist_range_b2t=METADATA['ang_dist_range_b2t'],
                             blocked=None,
                             **kwargs):
-        if blocked is None and self.MAP.map is not None:
-            if np.random.rand() < 0.5:
-                blocked = True
-            else:
-                blocked = False
-
         is_agent_valid = False
         while(not is_agent_valid):
             init_pose = {}
             if self.MAP.map is None:
-                blocked = False
+                blocked = None
                 a_init = self.agent_init_pos[:2]
                 is_agent_valid = True
             else:
@@ -193,8 +187,8 @@ class TargetTrackingEnv0(gym.Env):
                         init_pose['agent'][:2], init_pose['agent'][2],
                         lin_dist_range_a2b[0], lin_dist_range_a2b[1],
                         ang_dist_range_a2b[0], ang_dist_range_a2b[1])
-                    is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_belief[:2])
-                    if is_belief_valid:
+                    if is_belief_valid and (blocked is not None):
+                        is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_belief[:2])
                         is_belief_valid = (blocked == is_blocked)
                     count += 1
                     if count > 100:
@@ -209,8 +203,8 @@ class TargetTrackingEnv0(gym.Env):
                         init_pose['belief_targets'][i][2],
                         lin_dist_range_b2t[0], lin_dist_range_b2t[1],
                         ang_dist_range_b2t[0], ang_dist_range_b2t[1])
-                    is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_target[:2])
-                    if is_target_valid:
+                    if is_target_valid and (blocked is not None):
+                        is_blocked = self.MAP.is_blocked(init_pose['agent'][:2], init_pose_target[:2])
                         is_target_valid = (blocked == is_blocked)
                     count += 1
                     if count > 100:
@@ -367,7 +361,7 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
-                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.zeros(2))),
+                        init_state=np.concatenate((init_pose['belief_targets'][i][:2], np.ones(2))),
                         init_cov=self.target_init_cov)
             self.targets[i].reset(np.concatenate((init_pose['targets'][i][:2], self.target_init_vel)))
 
@@ -400,7 +394,8 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
                                                                 is_col=is_col)
         # Predict the target for the next step, b_t+2|t+1
-        self.belief_targets[i].predict()
+        for i in range(self.num_targets):
+            self.belief_targets[i].predict()
 
         # Compute the RL state.
         self.state_func(action_vw, observed)
