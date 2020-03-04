@@ -34,6 +34,10 @@ class GridMap(object):
         self.margin2wall = margin2wall
         self.origin = map_config['origin']
         self.visit_freq_map = None
+        self.visit_map = None
+
+    def reset_visit_map(self):
+        self.visit_map = np.zeros(self.mapdim)
 
     def reset_visit_freq_map(self):
         self.visit_freq_map = np.zeros(self.mapdim)
@@ -190,6 +194,8 @@ class GridMap(object):
                 if self.is_collision_ray_cell(ray_cells[:,i]):
                     break
                 self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
+                if self.visit_map is not None:
+                    self.visit_map[ray_cells[0,i], ray_cells[1,i]] += 1.0
                 i += 1
 
     def local_map_helper(self, im_size, odom, local_mapmin, R, get_visit_freq=False):
