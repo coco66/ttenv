@@ -424,6 +424,10 @@ class TargetTrackingEnv1(TargetTrackingEnv0):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
 
+        # Update the visit map for the evaluation purpose.
+        if self.MAP.visit_map is not None:
+            self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
+
     def observe_and_update_belief(self):
         observed = []
         for i in range(self.num_targets):

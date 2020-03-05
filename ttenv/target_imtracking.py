@@ -184,12 +184,12 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
 
-    def map_state_func(self):
         # Update the visit frequency map.
         b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
         decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.7))
-        self.MAP.update_visit_freq_map(self.agent.state, decay_factor)
+        self.MAP.update_visit_freq_map(self.agent.state, decay_factor, observed=bool(np.mean(observed)))
 
+    def map_state_func(self):
         self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
                                                 self.im_size, self.agent.state)
         _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(

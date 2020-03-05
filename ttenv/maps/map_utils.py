@@ -175,7 +175,7 @@ class GridMap(object):
             return closest_obstacle
 
     def update_visit_freq_map(self, odom, decay_factor=1.0, ang_res=0.05,
-                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r']):
+                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'], observed=True):
         """
         Update the visit frequency map from the given odometry.
         """
@@ -193,8 +193,9 @@ class GridMap(object):
             while(i < ray_cells.shape[-1]): # break!
                 if self.is_collision_ray_cell(ray_cells[:,i]):
                     break
-                self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
-                if self.visit_map is not None:
+                if self.visit_freq_map is not None:
+                    self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
+                if self.visit_map is not None and not(observed):
                     self.visit_map[ray_cells[0,i], ray_cells[1,i]] += 1.0
                 i += 1
 
