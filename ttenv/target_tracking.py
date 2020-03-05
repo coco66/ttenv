@@ -61,34 +61,16 @@ class TargetTrackingEnv0(TargetTrackingBase):
         self.id = 'TargetTracking-v0'
         self.target_dim = 2
 
-        # LIMITS
-        self.limit = {} # 0: low, 1:high
-        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['target'] = [self.MAP.mapmin, self.MAP.mapmax]
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi ])),
-                               np.concatenate(([600.0, np.pi, 50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
-        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        # Set limits.
+        self.set_limits()
 
-        self.target_noise_cov = METADATA['const_q'] * self.sampling_period**3 / 3 * np.eye(self.target_dim)
-        if known_noise:
-            self.target_true_noise_sd = self.target_noise_cov
-        else:
-            self.target_true_noise_sd = METADATA['const_q_true'] * np.eye(2)
-        self.targetA = np.eye(self.target_dim)
-        # Build a robot
-        self.agent = AgentSE2(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
-                            collision_func=lambda x: self.MAP.is_collision(x))
-        # Build a target
-        self.targets = [AgentDoubleInt2D(dim=self.target_dim, sampling_period=self.sampling_period,
-                            limit=self.limit['target'],
-                            collision_func=lambda x: self.MAP.is_collision(x),
-                            A=self.targetA, W=self.target_true_noise_sd) for _ in range(num_targets)]
-        self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
-                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: self.MAP.is_collision(x))
-                                for _ in range(num_targets)]
+        # Build an agent, targets, and beliefs.
+        self.build_models(const_q=METADATA['const_q'], known_noise=known_noise)
 
     def reset(self, **kwargs):
+        if 'const_q' in kwargs:
+            self.build_models(const_q=kwargs['const_q'])
+
         # Reset the agent, targets, and beliefs with sampled initial positions.
         init_pose = super().reset(**kwargs)
         self.agent.reset(init_pose['agent'])
@@ -130,6 +112,41 @@ class TargetTrackingEnv0(TargetTrackingBase):
         if self.MAP.visit_map is not None:
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
+    def set_limits(self):
+        self.limit = {} # 0: low, 1:high
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [self.MAP.mapmin, self.MAP.mapmax]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi ])),
+                               np.concatenate(([600.0, np.pi, 50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+
+    def build_models(self, const_q=None, known_noise=True, **kwargs):
+        if const_q is None:
+            self.const_q = np.random.choice([0.001, 0.1, 1.0])
+        else:
+            self.const_q = const_q
+
+        # Build a robot
+        self.agent = AgentSE2(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
+                            collision_func=lambda x: self.MAP.is_collision(x))
+
+        self.target_noise_cov = self.const_q * self.sampling_period**3 / 3 * np.eye(self.target_dim)
+        if known_noise:
+            self.target_true_noise_sd = self.target_noise_cov
+        else:
+            self.target_true_noise_sd = METADATA['const_q_true'] * np.eye(2)
+        self.targetA = np.eye(self.target_dim)
+
+        # Build a target
+        self.targets = [AgentDoubleInt2D(dim=self.target_dim, sampling_period=self.sampling_period,
+                            limit=self.limit['target'],
+                            collision_func=lambda x: self.MAP.is_collision(x),
+                            A=self.targetA, W=self.target_true_noise_sd) for _ in range(self.num_targets)]
+        self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
+                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
+                            collision_func=lambda x: self.MAP.is_collision(x))
+                                for _ in range(self.num_targets)]
+
 class TargetTrackingEnv1(TargetTrackingBase):
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
         TargetTrackingBase.__init__(self, num_targets=num_targets, map_name=map_name,
@@ -138,19 +155,18 @@ class TargetTrackingEnv1(TargetTrackingBase):
         self.target_dim = 4
         self.target_init_vel = np.array(METADATA['target_init_vel'])
 
-        # LIMIT
-        self.limit = {} # 0: low, 1:highs
-        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        # Set limits.
+        self.set_limits(target_speed_limit=METADATA['target_speed_limit'])
 
-        # Build a robot
-        self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
-                            lambda x: self.MAP.is_collision(x))
-        self.set_targets(target_speed_limit=METADATA['target_speed_limit'],
-                            const_q=METADATA['const_q'], known_noise=known_noise)
+        # Build an agent, targets, and beliefs.
+        self.build_models(const_q=METADATA['const_q'], known_noise=known_noise)
 
     def reset(self, **kwargs):
-        if 'const_q' in kwargs and 'target_speed_limit' in kwargs:
-            self.set_targets(target_speed_limit=kwargs['target_speed_limit'], const_q=kwargs['const_q'])
+        if 'target_speed_limit' in kwargs:
+            self.set_limits(target_speed_limit=kwargs['target_speed_limit'])
+
+        if 'const_q' in kwargs:
+            self.build_models(const_q=kwargs['const_q'])
 
         # Reset the agent, targets, and beliefs with sampled initial positions.
         init_pose = super().reset(**kwargs)
@@ -197,23 +213,31 @@ class TargetTrackingEnv1(TargetTrackingBase):
         if self.MAP.visit_map is not None:
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
-    def set_targets(self, target_speed_limit=None, const_q=None, known_noise=True, **kwargs):
+    def set_limits(self, target_speed_limit=None):
         if target_speed_limit is None:
             self.target_speed_limit = np.random.choice([1.0, 3.0])
         else:
             self.target_speed_limit = target_speed_limit
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
 
+        self.limit = {} # 0: low, 1:highs
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
+                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+
+    def build_models(self, const_q=None, known_noise=True, **kwargs):
         if const_q is None:
             self.const_q = np.random.choice([0.001, 0.1, 1.0])
         else:
             self.const_q = const_q
 
-        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
-                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
-        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi])),
-                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
-        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        # Build a robot
+        self.agent = AgentSE2(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
+                            collision_func=lambda x: self.MAP.is_collision(x))
+
         # Build targets
         self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
                                         [[0,0,1,0],[0,0,0,1]]))
