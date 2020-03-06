@@ -238,3 +238,50 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
         self.local_mapmin_g.extend(local_mapmin_gs)
 
         return np.array(self.local_map).T.flatten()
+
+class TargetTrackingEnv9(TargetTrackingEnv7):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True,
+                                        known_noise=True, im_size=28, **kwargs):
+        TargetTrackingEnv7.__init__(self, num_targets=num_targets,
+            map_name=map_name, is_training=is_training, known_noise=known_noise,
+            im_size=im_size, **kwargs)
+        self.id = 'TargetTracking-v9'
+
+        new_state_limit_low = np.append(self.limit['state'][0], 0.0)
+        new_state_limit_high = np.append(self.limit['state'][1], self.sensor_r)
+        self.limit['state'] = [new_state_limit_low, new_state_limit_high]
+        self.observation_space = spaces.Box(
+            np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
+            dtype=np.float32)
+
+    def state_func(self, action_vw, observed):
+        # Find the closest obstacle coordinate.
+        obstacles_pt, front_obstacle_r = self.MAP.get_closest_obstacle_v2(self.agent.state)
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+        if front_obstacle_r is None:
+            front_obstacle_r = self.sensor_r
+
+        self.state = []
+        for i in range(self.num_targets):
+            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
+                                                xy_base=self.agent.state[:2],
+                                                theta_base=self.agent.state[2])
+            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
+                                    self.belief_targets[i].state[:2],
+                                    self.belief_targets[i].state[2:],
+                                    self.agent.state[:2], self.agent.state[2],
+                                    action_vw[0], action_vw[1])
+            is_belief_blocked = self.MAP.is_blocked(self.agent.state[:2], self.belief_targets[i].state[:2])
+            self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
+                                np.log(LA.det(self.belief_targets[i].cov)),
+                                float(observed[i]), float(is_belief_blocked)])
+        self.state.extend([obstacles_pt[0], obstacles_pt[1], front_obstacle_r])
+        self.state = np.array(self.state)
+        print(self.state[-3:])
+
+        # Update the visit frequency map.
+        b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
+        decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.7))
+        self.MAP.update_visit_freq_map(self.agent.state, decay_factor, observed=bool(np.mean(observed)))

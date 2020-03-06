@@ -177,6 +177,51 @@ class GridMap(object):
         else:
             return closest_obstacle
 
+    def get_closest_obstacle_v2(self, odom, ang_res=0.05,
+                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r']):
+        """
+        Return radial and angular distances of the closest obstacle/boundary cell
+        """
+        ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
+        ang_grid = np.append(ang_grid, 0.0)
+        closest_obstacle = (r_max, 0.0)
+        start_rc = self.se2_to_cell(odom[:2])
+        front_obstacle_distance = None
+        for ang in ang_grid:
+            end_pt_global_frame = coord_change2g(np.array(
+                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
+                            odom[-1]) + odom[:2]
+            end_rc = self.se2_to_cell(end_pt_global_frame)
+            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+            i = 0
+            if self.map is None:
+                while(i < ray_cells.shape[-1]):
+                    pt = self.cell_to_se2(ray_cells[:,i])
+                    if not(self.in_bound(pt)):
+                        break
+                    i += 1
+                if i < ray_cells.shape[-1]:
+                    ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
+                    if ang == 0.0:
+                        front_obstacle_distance = ro_min_t
+                    if ro_min_t < closest_obstacle[0]:
+                        closest_obstacle = (ro_min_t, ang)
+            else:
+                while(i < ray_cells.shape[-1]): # break!
+                    if self.is_collision_ray_cell(ray_cells[:,i]):
+                        break
+                    i += 1
+                if i < ray_cells.shape[-1]:
+                    ro_min_t = np.sqrt(np.sum(np.square(self.cell_to_se2(ray_cells[:,i]) - odom[:2])))
+                    if ang == 0.0:
+                        front_obstacle_distance = ro_min_t
+                    if ro_min_t < closest_obstacle[0]:
+                        closest_obstacle = (ro_min_t, ang)
+        if closest_obstacle[0] == r_max:
+            return None, front_obstacle_distance
+        else:
+            return closest_obstacle, front_obstacle_distance
+
     def update_visit_freq_map(self, odom, decay_factor=1.0, ang_res=0.05,
                 fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'], observed=True):
         """
