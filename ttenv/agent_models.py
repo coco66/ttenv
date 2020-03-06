@@ -128,6 +128,7 @@ class AgentSE2(Agent):
 
     def reset(self, init_state):
         super().reset(init_state)
+        self.vw = [0.0, 0.0]
         if self.policy:
             self.policy.reset(init_state)
 
@@ -146,6 +147,7 @@ class AgentSE2(Agent):
         if self.collision_check(new_state[:2]):
             is_col = 1
             new_state[:2] = self.state[:2]
+            control_input = self.vw
             if self.policy is not None:
                 corrected_policy = self.policy.collision(new_state)
                 if corrected_policy is not None:
@@ -157,8 +159,10 @@ class AgentSE2(Agent):
             for mp in margin_pos:
                 if self.margin_check(new_state[:2], margin_pos):
                     new_state[:2] = self.state[:2]
+                    control_input = self.vw
                     break
         self.state = new_state
+        self.vw = control_input
         self.range_check()
 
         return is_col
@@ -188,6 +192,12 @@ def SE2DynamicsVel(x, dt, u=None):
     return np.concatenate((odom, u))
 
 class Agent2DFixedPath(Agent):
+    """
+    A predefined path for each target must be provided.
+    Each path_i file for i=target_num is a T by 4 matrix where T is the
+    number of time steps in a trajectory (or per episode). Each row consists
+    of (x, y, xdot, ydot).
+    """
     def __init__(self, dim, sampling_period, limit, collision_func, path, margin=METADATA['margin']):
         Agent.__init__(self, dim, sampling_period, limit, collision_func, margin=margin)
         self.path = path
