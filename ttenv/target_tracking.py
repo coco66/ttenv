@@ -19,12 +19,12 @@ TargetTrackingEnv0 : Static Target model + noise - No Velocity Estimate
 
 TargetTrackingEnv1 : Double Integrator Target model with KF belief tracker
     RL state: [d, alpha, ddot, alphadot, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]
-    Target : Double Integrator model, [x,y,xdot,ydot]
+    Target : Nonlinear Double Integrator model, [x,y,xdot,ydot]
     Belief Target : KF, Double Integrator model
 
-TargetTrackingEnv2 : Predefined target paths with KF belief tracker
-    RL state: [d, alpha, ddot, alphadot, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]
-    Target : Pre-defined target paths - input files required
+TargetTrackingEnv2 : Double Integrator Target model with KF belief tracker (belief block boolean var)
+    RL state: [d, alpha, ddot, alphadot, logdet(Sigma), observed, belief_blocked] * nb_targets, [o_d, o_alpha]
+    Target : Nonlinear Double Integrator model, [x,y,xdot,ydot]
     Belief Target : KF, Double Integrator model
 
 TargetTrackingEnv3 : SE2 Target model with UKF belief tracker
@@ -263,46 +263,53 @@ class TargetTrackingEnv1(TargetTrackingBase):
 
 class TargetTrackingEnv2(TargetTrackingEnv1):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
-                known_noise=True, target_path_dir=None, **kwargs):
-        """
-        A predefined path for each target must be provided under the target_path_dir.
-        Each path_i file for i=target_num is a T by 4 matrix where T is the
-        number of time steps in a trajectory (or per episode). Each row consists
-        of (x, y, xdot, ydot).
-        """
-        if target_path_dir is None:
-            raise ValueError('No path directory for targets is provided.')
+                known_noise=True, **kwargs):
         TargetTrackingEnv1.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v2'
-        self.targets = [Agent2DFixedPath(dim=self.target_dim, sampling_period=self.sampling_period,
-                                limit=self.limit['target'],
-                                collision_func=lambda x: self.MAP.is_collision(x),
-                                path=np.load(os.path.join(target_path_dir, "path_%d.npy"%(i+1)))) for i in range(self.num_targets)]
-    def reset(self, **kwargs):
+
+    def state_func(self, action_vw, observed):
+        # Find the closest obstacle coordinate.
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
+        if obstacles_pt is None:
+            obstacles_pt = (self.sensor_r, np.pi)
+
         self.state = []
-        if self.MAP.map is None:
-            a_init = self.agent_init_pos[:2]
-            self.agent.reset(self.agent_init_pos)
-        else:
-            isvalid = False
-            while(not isvalid):
-                a_init = np.random.random((2,)) * (self.MAP.mapmax-self.MAP.mapmin) + self.MAP.mapmin
-                isvalid = not(self.MAP.is_collision(a_init))
-            self.agent.reset([a_init[0], a_init[1], np.random.random()*2*np.pi-np.pi])
         for i in range(self.num_targets):
-            t_init = np.load("path_sh_%d.npy"%(i+1))[0][:2]
-            self.belief_targets[i].reset(init_state=np.concatenate((t_init + METADATA['init_distance_belief'] * (np.random.rand(2)-0.5), np.zeros(2))), init_cov=self.target_init_cov)
-            self.targets[i].reset(np.concatenate((t_init, self.target_init_vel)))
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
+            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
                                                 theta_base=self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
-        self.state.extend([self.sensor_r, np.pi])
+            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
+                                    self.belief_targets[i].state[:2],
+                                    self.belief_targets[i].state[2:],
+                                    self.agent.state[:2], self.agent.state[2],
+                                    action_vw[0], action_vw[1])
+            is_belief_blocked = self.MAP.is_blocked(self.agent.state[:2], self.belief_targets[i].state[:2])
+            self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
+                                np.log(LA.det(self.belief_targets[i].cov)),
+                                float(observed[i]), float(is_belief_blocked)])
+        self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state
 
+        # Update the visit map for the evaluation purpose.
+        if self.MAP.visit_map is not None:
+            self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
+
+    def set_limits(self, target_speed_limit=None):
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
+
+        self.limit = {} # 0: low, 1:highs
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
+                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0, 0.0]*self.num_targets, [0.0, -np.pi])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
 
 class TargetTrackingEnv3(TargetTrackingEnv0):
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
