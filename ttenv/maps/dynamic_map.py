@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import yaml
-
+from skimage.transform import rotate
 
 from ttenv.maps.map_utils import GridMap
 import ttenv.util as util
@@ -24,57 +24,32 @@ class DynamicMap(GridMap):
         self.submap_coordinates = [[map_config['submaporigin'][2*i], map_config['submaporigin'][2*i+1]] for i in range(4)]
 
         self.obstacles_idx = []
+        self.obstacles = []
         obj_files = os.listdir(obj_lib_path)
         for obj_f in obj_files:
             if '.npy' in obj_f:
+                self.obstacles.append(np.load(os.path.join(obj_lib_path, obj_f)))
                 # 2 by #-of-nonzero-cells array.
-                self.obstacles_idx.append(np.array(np.nonzero(np.load(os.path.join(obj_lib_path, obj_f)))))
+                # self.obstacles_idx.append(np.array(np.nonzero(np.load(os.path.join(obj_lib_path, obj_f)))))
         self.visit_freq_map = None
         self.visit_map = None
 
     def generate_map(self):
         self.map = np.zeros(self.mapdim)
         map_tmp = np.zeros(self.mapdim)
-        chosen_idx = np.random.choice(len(self.obstacles_idx), 4, replace=False)
+        chosen_idx = np.random.choice(len(self.obstacles), 4, replace=False)
         for (i, c_id) in enumerate(chosen_idx):
-            rot_ang = (np.random.random() - 0.5) * 2 * np.pi
-
-            # rotate in the local frame.
-            xy_local = np.matmul([[np.cos(rot_ang), np.sin(rot_ang)],
-                            [-np.sin(rot_ang), np.cos(rot_ang)]],
-                            self.cell_to_se2_batch(self.obstacles_idx[c_id]) \
-                            - 25 * np.reshape(self.mapres, (2,1)))
-
-            xy_global = xy_local + np.reshape(
-                                    self.cell_to_se2(self.submap_coordinates[i]),
-                                    (2,1))
-            cell_global = self.se2_to_cell_batch(xy_global)
-            map_tmp[cell_global[0], cell_global[1]] = 1.0
-
-        for r in range(self.mapdim[0]-2):
-            if np.sum(map_tmp[r+1,:]) > 0:
-                for c in range(self.mapdim[1]-2):
-                    if map_tmp[r+1, c+1] == 0:
-                        self.map[r+1, c+1] = int(np.sum(map_tmp[r:r+3, c:c+3]) > 3)
-                    else:
-                        self.map[r+1, c+1] = map_tmp[r+1, c+1]
-
+            rot_ang = np.random.choice(np.arange(-10,10,1) / 10. * 180)
+            rotated_obs = rotate(self.obstacles[c_id], rot_ang, resize=True, center=(24,24))
+            rotated_obs_idx_local = np.array(np.nonzero(rotated_obs))
+            rotated_obs_idx_global_0 = rotated_obs_idx_local[0] \
+                                        - int(rotated_obs.shape[0]/2) \
+                                        + self.submap_coordinates[i][0]
+            rotated_obs_idx_global_1 = rotated_obs_idx_local[1] \
+                                        - int(rotated_obs.shape[1]/2) \
+                                        + self.submap_coordinates[i][1]
+            self.map[rotated_obs_idx_global_0, rotated_obs_idx_global_1] = 1.0
         self.map_linear = np.squeeze(self.map.astype(np.int8).reshape(-1, 1))
-
-    def se2_to_cell_batch(self, pos):
-        """
-        pos : 2 by N numpy array with axis 0 for x,y coordinate.
-        """
-        cell_idx_0 = (pos[0,:] - self.mapmin[0])/self.mapres[0] - 0.5
-        cell_idx_1 = (pos[1,:] - self.mapmin[1])/self.mapres[1] - 0.5
-        return np.asarray(cell_idx_0.round(), dtype=np.int32), np.asarray(cell_idx_1.round(), dtype=np.int32)
-
-    def cell_to_se2_batch(self, cell_idx):
-        """
-        cell_idx : 2 by N numpy array with axis 0 is for row and column indices.
-        """
-        return (cell_idx + 0.5 ) * np.reshape(self.mapres, (2,1)) \
-                    + np.reshape(self.mapmin, (2,1))
 
 if __name__ == '__main__':
     print("Test DynamicMap")
