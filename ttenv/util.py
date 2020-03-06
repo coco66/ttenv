@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import linalg as LA
 
 # Convention : VARIABLE_OBJECT_FRAME. If FRAME is omitted, it means it is with
 # respect to the global frame.
@@ -132,3 +133,34 @@ def vw_to_xydot(v, w, theta):
         x_dot = v/w * (np.sin(theta + w) - np.sin(theta))
         y_dot = v/w * (np.cos(theta) - np.cos(theta + w))
     return x_dot, y_dot
+
+def iterative_mare(X_0, A, W, C, R, l):
+    """
+    Solving a modified algebraic Riccati equation for the Kalman Filter by
+    iteration.
+
+    Parameters
+    ---------
+    x_t+1 = Ax_t + w_t  where w_t ~ W
+    z_t = Cx_t + v_t  where v_t ~ R
+    l = Bernoulli process parameter for the arrival of an observation.
+    """
+    def mare(X):
+        K = np.matmul(C, np.matmul(X, C.T)) + R
+        B = np.matmul(A, np.matmul(X, C.T))
+        G = np.matmul(C, np.matmul(X, A.T))
+
+        return np.matmul(A, np.matmul(X,A.T)) + W \
+            - l * np.matmul(B, np.matmul(LA.inv(K), G))
+    X = X_0
+    error = 1.0
+    count = 0
+    while(error > 1e-3):
+        X_next = mare(X)
+        error = np.abs(LA.det(X_next) - LA.det(X))
+        X = X_next
+        count += 1
+        if count > 1000:
+            raise ValueError('No convergence.')
+
+    return X
