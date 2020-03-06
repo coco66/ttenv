@@ -148,7 +148,7 @@ METADATA_v7={
         'sensor_b_sd': 0.01, # sensor bearing noise.
         'target_init_cov': 30.0, # initial target diagonal Covariance.
         'target_init_vel': [0.0, 0.0], # target's initial velocity.
-        'target_speed_limit': 3.2, # velocity limit of targets.
+        'target_speed_limit': 3.5, # velocity limit of targets.
         'lin_dist_range_a2b':(5.0, 20.0),
         'ang_dist_range_a2b':(-np.pi, np.pi),
         'lin_dist_range_b2t':(0.0, 20.0),
@@ -169,7 +169,7 @@ METADATA_multi_v1={
         'sensor_b_sd': 0.01, # sensor bearing noise.
         'target_init_cov': 30.0, # initial target diagonal Covariance.
         'target_init_vel': [0.0, 0.0], # target's initial velocity.
-        'target_speed_limit': 2.0, # velocity limit of targets.
+        'target_speed_limit': 1.0, # velocity limit of targets.
         'lin_dist_range_a2b':(3.0, 10.0),
         'ang_dist_range_a2b':(-np.pi, np.pi),
         'lin_dist_range_b2t':(0.0, 3.0),
@@ -183,4 +183,4 @@ METADATA_multi_v1={
     }
 
 # Designate a metadata version to be used throughout the target tracking env.
-METADATA = METADATA_multi_v1
+METADATA = METADATA_v7
