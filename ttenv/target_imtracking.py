@@ -279,7 +279,6 @@ class TargetTrackingEnv9(TargetTrackingEnv7):
                                 float(observed[i]), float(is_belief_blocked)])
         self.state.extend([obstacles_pt[0], obstacles_pt[1], front_obstacle_r])
         self.state = np.array(self.state)
-        print(self.state[-3:])
 
         # Update the visit frequency map.
         b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
