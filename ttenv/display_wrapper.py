@@ -17,10 +17,6 @@ class Display2D(Wrapper):
         self.figID = figID # figID = 0 : train, figID = 1 : test
         self.env_core = env.env
         self.bin = self.env_core.MAP.mapres
-        if self.env_core.MAP.map is None:
-            self.map = np.zeros(self.env_core.MAP.mapdim)
-        else:
-            self.map = self.env_core.MAP.map
         self.mapmin = self.env_core.MAP.mapmin
         self.mapmax = self.env_core.MAP.mapmax
         self.mapres = self.env_core.MAP.mapres
@@ -62,8 +58,18 @@ class Display2D(Wrapper):
                 else:
                     raise ValueError('Invalid number of local_view.')
 
-            im = ax.imshow(self.map, cmap='gray_r', origin='lower',
-                                        extent=[self.mapmin[0], self.mapmax[0],
+            if self.env_core.MAP.visit_freq_map is not None:
+                background_map = self.env_core.MAP.visit_freq_map.T
+                if self.env_core.MAP.map is not None:
+                    background_map += 2 * self.env_core.MAP.map
+            else:
+                if self.env_core.MAP.map is not None:
+                    background_map = 2 * self.env_core.MAP.map
+                else:
+                    background_map = np.zeros(self.env_core.MAP.mapdim)
+
+            im = ax.imshow(background_map, cmap='gray_r', origin='lower',
+                        vmin=0, vmax=2, extent=[self.mapmin[0], self.mapmax[0],
                                                 self.mapmin[1], self.mapmax[1]])
 
             ax.plot(state[0], state[1], marker=(3, 0, state[2]/np.pi*180-90),

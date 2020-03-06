@@ -36,6 +36,9 @@ class GridMap(object):
         self.visit_freq_map = None
         self.visit_map = None
 
+    def generate_map(self):
+        pass
+
     def reset_visit_map(self):
         self.visit_map = np.zeros(self.mapdim)
 

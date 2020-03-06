@@ -13,6 +13,8 @@ from ttenv.belief_tracker import KFbelief, UKFbelief
 from ttenv.metadata import METADATA
 import ttenv.util as util
 
+from ttenv.maps.dynamic_map import DynamicMap
+
 class TargetTrackingBase(gym.Env):
     def __init__(self, num_targets=1, map_name='empty',
                     is_training=True, known_noise=True, **kwargs):
@@ -38,9 +40,15 @@ class TargetTrackingBase(gym.Env):
         self.fov = METADATA['fov']
 
         map_dir_path = '/'.join(map_utils.__file__.split('/')[:-1])
-        self.MAP = map_utils.GridMap(
-            map_path=os.path.join(map_dir_path, map_name),
-            margin2wall = METADATA['margin2wall'])
+        if map_name == 'dynamic_map':
+            self.MAP = DynamicMap(
+                obj_lib_path = os.path.join(map_dir_path, 'lib_obstacles'),
+                map_path = os.path.join(map_dir_path, map_name),
+                margin2wall = METADATA['margin2wall'])
+        else:
+            self.MAP = map_utils.GridMap(
+                map_path=os.path.join(map_dir_path, map_name),
+                margin2wall = METADATA['margin2wall'])
 
         self.agent_init_pos =  np.array([self.MAP.origin[0], self.MAP.origin[1], 0.0])
         self.target_init_pos = np.array(self.MAP.origin)
@@ -115,6 +123,7 @@ class TargetTrackingBase(gym.Env):
                     is_agent_valid = not(self.MAP.is_collision(a_init))
 
             init_pose['agent'] = [a_init[0], a_init[1], np.random.random() * 2 * np.pi - np.pi]
+
             init_pose['targets'], init_pose['belief_targets'] = [], []
             for i in range(self.num_targets):
                 count, is_belief_valid = 0, False
@@ -147,6 +156,10 @@ class TargetTrackingBase(gym.Env):
                         is_agent_valid = False
                         break
                 init_pose['targets'].append(init_pose_target)
+
+            # init_pose['agent'][0], init_pose['agent'][1] = 54.0, 20.0
+            # init_pose['targets'][0][0], init_pose['targets'][0][1] = 58.0, 32.0
+            # init_pose['belief_targets'][0][0], init_pose['belief_targets'][0][1] = 54.0, 33.0
         return init_pose
 
     def add_history_to_state(self, state, num_target_dep_vars, num_target_indep_vars, logdetcov_idx):
@@ -207,6 +220,7 @@ class TargetTrackingBase(gym.Env):
         return reward_fun_1(self.belief_targets, is_training=is_training, **kwargs)
 
     def reset(self, **kwargs):
+        self.MAP.generate_map()
         self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
