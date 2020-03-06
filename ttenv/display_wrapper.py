@@ -49,12 +49,13 @@ class Display2D(Wrapper):
             self.fig.clf()
             ax = self.fig.subplots()
             im = None
-
             if self.local_view:
+                self.fig0.clf()
                 if self.local_view == 1:
                     ax0 = self.fig0.subplots()
                 elif self.local_view == 5:
                     ax0 = self.fig0.subplots(3,3)
+                    [[ax0[r][c].set_aspect('equal','box') for r in range(3)] for c in range(3)]
                 else:
                     raise ValueError('Invalid number of local_view.')
 
