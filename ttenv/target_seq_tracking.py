@@ -10,14 +10,14 @@ from ttenv.policies import *
 from ttenv.belief_tracker import KFbelief
 import ttenv.util as util
 from ttenv.target_tracking import TargetTrackingEnv1
-from ttenv.target_imtracking import TargetTrackingEnv5, TargetTrackingEnv7, TargetTrackingEnv8
+from ttenv.target_imtracking import TargetTrackingEnv5, TargetTrackingEnv7, TargetTrackingEnv8, TargetTrackingEnv9
 
 NUM_TARGET_DEP_VARS = 6
 NUM_TARGET_INDEP_VARS = 2
 LOGDETCOV_IDX = 4
 HISTORY_LENGTH = 3
 
-def get_state_limit(state_limit,
+def update_state_limit(state_limit,
                     num_targets,
                     history_length=HISTORY_LENGTH,
                     num_target_dep_vars=NUM_TARGET_DEP_VARS,
@@ -45,7 +45,7 @@ class TargetTrackingEnv1_SEQ(TargetTrackingEnv1):
                     is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v1_SEQ'
         self.history_length = HISTORY_LENGTH
-        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
+        self.limit['state'] = update_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(
             self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
 
@@ -71,7 +71,7 @@ class TargetTrackingEnv5_SEQ(TargetTrackingEnv5):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v5_SEQ'
         self.history_length = HISTORY_LENGTH
-        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
+        self.limit['state'] = update_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(np.concatenate((
             np.zeros(im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(im_size*im_size,), self.limit['state'][1])),
@@ -103,7 +103,7 @@ class TargetTrackingEnv7_SEQ(TargetTrackingEnv7):
         self.id = 'TargetTracking-v7_SEQ'
         self.history_length = HISTORY_LENGTH
         self.num_target_dep_vars = 7
-        self.limit['state'] = get_state_limit(self.limit['state'], num_targets,
+        self.limit['state'] = update_state_limit(self.limit['state'], num_targets,
                                 num_target_dep_vars=self.num_target_dep_vars)
         self.observation_space = spaces.Box(
             np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
@@ -135,7 +135,7 @@ class TargetTrackingEnv8_SEQ(TargetTrackingEnv8):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v8_SEQ'
         self.history_length = HISTORY_LENGTH
-        self.limit['state'] = get_state_limit(self.limit['state'], num_targets)
+        self.limit['state'] = update_state_limit(self.limit['state'], num_targets)
         self.observation_space = spaces.Box(
             np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
@@ -156,6 +156,41 @@ class TargetTrackingEnv8_SEQ(TargetTrackingEnv8):
         im_state = state[:-len(self.state)]
         new_state = self.add_history_to_state(self.state, NUM_TARGET_DEP_VARS,
                                         NUM_TARGET_INDEP_VARS, LOGDETCOV_IDX)
+        return np.concatenate((im_state, new_state)), reward, done, info
+
+class TargetTrackingEnv9_SEQ(TargetTrackingEnv9):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True,
+                                        known_noise=True, im_size=28, **kwargs):
+        TargetTrackingEnv9.__init__(self, num_targets=num_targets,
+            map_name=map_name, is_training=is_training, known_noise=known_noise,
+            im_size=im_size, **kwargs)
+        self.id = 'TargetTracking-v9_SEQ'
+        self.history_length = HISTORY_LENGTH
+        self.num_target_dep_vars = 7
+        self.limit['state'] = update_state_limit(self.limit['state'], num_targets,
+                                num_target_dep_vars=self.num_target_dep_vars,
+                                num_target_indep_vars=3)
+        self.observation_space = spaces.Box(
+            np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
+            dtype=np.float32)
+
+    def reset(self, **kwargs):
+        state = super().reset(**kwargs)
+        im_state = state[:-len(self.state)]
+        self.logdetcov_history =[Storage(max_capacity = self.history_length,
+                    init_value = np.log(LA.det(self.belief_targets[i].cov)))
+                    for i in range(self.num_targets)]
+        new_state = self.add_history_to_state(self.state, self.num_target_dep_vars,
+                                        3, LOGDETCOV_IDX)
+        return np.concatenate((im_state, new_state))
+
+    def step(self, action):
+        state, reward, done, info = super().step(action)
+        im_state = state[:-len(self.state)]
+        new_state = self.add_history_to_state(self.state, self.num_target_dep_vars,
+                                        3, LOGDETCOV_IDX)
+        import pdb; pdb.set_trace()
         return np.concatenate((im_state, new_state)), reward, done, info
 
 class Storage():

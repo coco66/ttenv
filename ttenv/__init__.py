@@ -52,6 +52,9 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v8_SEQ':
         local_view = 5
         env0 = target_seq_tracking.TargetTrackingEnv8_SEQ(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-v9_SEQ':
+        local_view = 5
+        env0 = target_seq_tracking.TargetTrackingEnv9_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
