@@ -190,7 +190,6 @@ class TargetTrackingEnv9_SEQ(TargetTrackingEnv9):
         im_state = state[:-len(self.state)]
         new_state = self.add_history_to_state(self.state, self.num_target_dep_vars,
                                         3, LOGDETCOV_IDX)
-        import pdb; pdb.set_trace()
         return np.concatenate((im_state, new_state)), reward, done, info
 
 class Storage():
