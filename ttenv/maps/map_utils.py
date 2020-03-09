@@ -268,6 +268,8 @@ class GridMap(object):
 
     def local_map(self, im_size, odom, get_visit_freq=False):
         """
+        Parameters:
+        ---------
         im_size : the number of rows/columns
         """
         R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
@@ -275,6 +277,18 @@ class GridMap(object):
         local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
         return self.local_map_helper(im_size, odom, local_mapmin, R, get_visit_freq)
 
+    def local_visit_map(self, im_size, odom, get_visit_freq=True):
+        """
+        Return a local visit frequency map around the odom. odom position should
+        be the center.
+        Parameters:
+        ---------
+        im_size : the number of rows/columns
+        """
+        R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
+                  [np.sin(odom[2] - np.pi/2), np.cos(odom[2] - np.pi/2)]])
+        local_mapmin = np.array([-im_size/2*self.mapres[0], -im_size/2*self.mapres[0]])
+        return self.local_map_helper(im_size, odom, local_mapmin, R, get_visit_freq)
 
     def local_visit_map_surroundings(self, im_size, odom):
         """
