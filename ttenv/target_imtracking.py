@@ -145,17 +145,24 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v7'
 
-        new_state_limit_low, new_state_limit_high = [], []
-        for i in range(num_targets):
-            new_state_limit_low.extend(np.append(self.limit['state'][0][i*6:(i+1)*6], 0.0))
-            new_state_limit_high.extend(np.append(self.limit['state'][1][i*6:(i+1)*6], 2.0))
-        new_state_limit_low = np.concatenate((new_state_limit_low, [0.0, -np.pi]))
-        new_state_limit_high = np.concatenate((new_state_limit_high, [self.sensor_r, np.pi]))
-        self.limit['state'] = [new_state_limit_low, new_state_limit_high]
-        self.observation_space = spaces.Box(
-            np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
-            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
-            dtype=np.float32)
+    def set_limits(self, target_speed_limit=None):
+        self.num_target_dep_vars = 7
+        self.num_target_indep_vars = 2
+
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
+
+        self.limit = {} # 0: low, 1:highs
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
+                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0, 0.0]*self.num_targets, [0.0, -np.pi])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
 
     def reset(self, **kwargs):
         self.MAP.reset_visit_freq_map()
@@ -247,13 +254,24 @@ class TargetTrackingEnv9(TargetTrackingEnv7):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v9'
 
-        new_state_limit_low = np.append(self.limit['state'][0], 0.0)
-        new_state_limit_high = np.append(self.limit['state'][1], self.sensor_r)
-        self.limit['state'] = [new_state_limit_low, new_state_limit_high]
-        self.observation_space = spaces.Box(
-            np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
-            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
-            dtype=np.float32)
+    def set_limits(self, target_speed_limit=None):
+        self.num_target_dep_vars = 7
+        self.num_target_indep_vars = 3
+
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
+
+        self.limit = {} # 0: low, 1:highs
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
+                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0, 0.0]*self.num_targets, [0.0, -np.pi, 0.0])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0, 2.0]*self.num_targets, [self.sensor_r, np.pi, self.sensor_r]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
 
     def state_func(self, action_vw, observed):
         # Find the closest obstacle coordinate.

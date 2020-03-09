@@ -60,6 +60,8 @@ class TargetTrackingEnv0(TargetTrackingBase):
             is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v0'
         self.target_dim = 2
+        self.num_target_dep_vars = 4
+        self.num_target_indep_vars = 2
 
         # Set limits.
         self.set_limits()
@@ -119,6 +121,7 @@ class TargetTrackingEnv0(TargetTrackingBase):
         self.limit['state'] = [np.concatenate(([0.0, -np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi ])),
                                np.concatenate(([600.0, np.pi, 50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
 
     def build_models(self, const_q=None, known_noise=True, **kwargs):
         if const_q is None:
@@ -214,6 +217,9 @@ class TargetTrackingEnv1(TargetTrackingBase):
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
     def set_limits(self, target_speed_limit=None):
+        self.num_target_dep_vars = 6
+        self.num_target_indep_vars = 2
+
         if target_speed_limit is None:
             self.target_speed_limit = np.random.choice([1.0, 3.0])
         else:
@@ -227,6 +233,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
         self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi])),
                                np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
 
     def build_models(self, const_q=None, known_noise=True, **kwargs):
         if const_q is None:
@@ -296,6 +303,9 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
     def set_limits(self, target_speed_limit=None):
+        self.num_target_dep_vars = 7
+        self.num_target_indep_vars = 2
+
         if target_speed_limit is None:
             self.target_speed_limit = np.random.choice([1.0, 3.0])
         else:
@@ -310,6 +320,7 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
         self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0, 0.0]*self.num_targets, [0.0, -np.pi])),
                                np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
 
 class TargetTrackingEnv3(TargetTrackingEnv0):
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):

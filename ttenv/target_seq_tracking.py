@@ -102,7 +102,6 @@ class TargetTrackingEnv7_SEQ(TargetTrackingEnv7):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v7_SEQ'
         self.history_length = HISTORY_LENGTH
-        self.num_target_dep_vars = 7
         self.limit['state'] = update_state_limit(self.limit['state'], num_targets,
                                 num_target_dep_vars=self.num_target_dep_vars)
         self.observation_space = spaces.Box(
@@ -166,10 +165,9 @@ class TargetTrackingEnv9_SEQ(TargetTrackingEnv9):
             im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v9_SEQ'
         self.history_length = HISTORY_LENGTH
-        self.num_target_dep_vars = 7
         self.limit['state'] = update_state_limit(self.limit['state'], num_targets,
                                 num_target_dep_vars=self.num_target_dep_vars,
-                                num_target_indep_vars=3)
+                                num_target_indep_vars=self.num_target_indep_vars)
         self.observation_space = spaces.Box(
             np.concatenate((-np.ones(5*im_size*im_size,), self.limit['state'][0])),
             np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
@@ -181,15 +179,19 @@ class TargetTrackingEnv9_SEQ(TargetTrackingEnv9):
         self.logdetcov_history =[Storage(max_capacity = self.history_length,
                     init_value = np.log(LA.det(self.belief_targets[i].cov)))
                     for i in range(self.num_targets)]
-        new_state = self.add_history_to_state(self.state, self.num_target_dep_vars,
-                                        3, LOGDETCOV_IDX)
+        new_state = self.add_history_to_state(self.state,
+                                        self.num_target_dep_vars,
+                                        self.num_target_indep_vars,
+                                        LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state))
 
     def step(self, action):
         state, reward, done, info = super().step(action)
         im_state = state[:-len(self.state)]
-        new_state = self.add_history_to_state(self.state, self.num_target_dep_vars,
-                                        3, LOGDETCOV_IDX)
+        new_state = self.add_history_to_state(self.state,
+                                        self.num_target_dep_vars,
+                                        self.num_target_indep_vars,
+                                        LOGDETCOV_IDX)
         return np.concatenate((im_state, new_state)), reward, done, info
 
 class Storage():
