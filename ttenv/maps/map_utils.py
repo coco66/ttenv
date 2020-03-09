@@ -36,7 +36,7 @@ class GridMap(object):
         self.visit_freq_map = None
         self.visit_map = None
 
-    def generate_map(self):
+    def generate_map(self, **kwargs):
         pass
 
     def reset_visit_map(self):

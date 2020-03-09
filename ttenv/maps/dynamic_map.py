@@ -34,13 +34,16 @@ class DynamicMap(GridMap):
         self.visit_freq_map = None
         self.visit_map = None
 
-    def generate_map(self):
+    def generate_map(self, chosen_idx=None, rot_angs=None, **kwargs):
         self.map = np.zeros(self.mapdim)
         map_tmp = np.zeros(self.mapdim)
-        chosen_idx = np.random.choice(len(self.obstacles), 4, replace=False)
+        if chosen_idx is None:
+            chosen_idx = np.random.choice(len(self.obstacles), 3, replace=False)
+            chosen_idx = np.append(chosen_idx, 2)
+        if rot_angs is None:
+            rot_angs = [np.random.choice(np.arange(-10,10,1) / 10. * 180) for _ in range(4)]
         for (i, c_id) in enumerate(chosen_idx):
-            rot_ang = np.random.choice(np.arange(-10,10,1) / 10. * 180)
-            rotated_obs = rotate(self.obstacles[c_id], rot_ang, resize=True, center=(24,24))
+            rotated_obs = rotate(self.obstacles[c_id], rot_angs[i], resize=True, center=(24,24))
             rotated_obs_idx_local = np.array(np.nonzero(rotated_obs))
             rotated_obs_idx_global_0 = rotated_obs_idx_local[0] \
                                         - int(rotated_obs.shape[0]/2) \
@@ -50,11 +53,14 @@ class DynamicMap(GridMap):
                                         + self.submap_coordinates[i][1]
             self.map[rotated_obs_idx_global_0, rotated_obs_idx_global_1] = 1.0
         self.map_linear = np.squeeze(self.map.astype(np.int8).reshape(-1, 1))
+        # TEMP : Logging purpose.
+        self.chosen_idx = chosen_idx
+        self.rot_angs = rot_angs
 
 if __name__ == '__main__':
     print("Test DynamicMap")
     d = DynamicMap(obj_lib_path='maps/lib_obstacles', map_path='maps/dynamic_map')
-    for _ in range(10):
+    for _ in range(5):
         d.generate_map()
         import matplotlib.pyplot as plt
         plt.imshow(d.map, cmap='gray_r')
