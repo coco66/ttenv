@@ -278,7 +278,7 @@ class TargetTrackingEnv10(TargetTrackingEnv5):
                                         known_noise=True, im_size=50, **kwargs):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise,
-            rrim_size=im_size, **kwargs)
+            im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v10'
 
     def reset(self, **kwargs):
