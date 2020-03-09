@@ -75,12 +75,9 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
     def __init__(self, num_targets=1, map_name='empty', is_training=True,
                                         known_noise=True, im_size=50, **kwargs):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
-            map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
+            map_name=map_name, is_training=is_training, known_noise=known_noise,
+            rrim_size=im_size, **kwargs)
         self.id = 'TargetTracking-v6'
-        self.observation_space = spaces.Box(np.concatenate((
-            -np.ones(im_size*im_size,), self.limit['state'][0])),
-            np.concatenate((np.ones(im_size*im_size,), self.limit['state'][1])),
-            dtype=np.float32)
 
     def reset(self, **kwargs):
         self.MAP.reset_visit_freq_map()
@@ -91,7 +88,7 @@ class TargetTrackingEnv6(TargetTrackingEnv5):
         b_speed = np.mean([np.sqrt(np.sum(self.belief_targets[i].state[2:]**2)) for i in range(self.num_targets)])
         decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.7))
         self.MAP.update_visit_freq_map(self.agent.state, decay_factor)
-        
+
         _, self.local_mapmin_g, local_visit_map = self.MAP.local_visit_map(
                                                     self.im_size, self.agent.state)
         # normalize the maps
@@ -183,14 +180,17 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
         TargetTrackingEnv5.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, im_size=im_size, **kwargs)
         self.id = 'TargetTracking-v8'
-        self.observation_space = spaces.Box(np.concatenate((
-            -np.ones(5*im_size*im_size,), self.limit['state'][0])),
-            np.concatenate((np.ones(5*im_size*im_size,), self.limit['state'][1])),
-            dtype=np.float32)
 
     def reset(self, **kwargs):
         self.MAP.reset_visit_freq_map()
         return super().reset(**kwargs)
+
+    def set_limits(self, target_speed_limit=None):
+        super().set_limits(target_speed_limit)
+        self.observation_space = spaces.Box(
+            np.concatenate((-np.ones(5*self.im_size*self.im_size,), self.limit['state'][0])),
+            np.concatenate((np.ones(5*self.im_size*self.im_size,), self.limit['state'][1])),
+            dtype=np.float32)
 
     def map_state_func(self):
         # Update the visit frequency map.
