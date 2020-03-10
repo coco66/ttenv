@@ -33,6 +33,19 @@ class Display2D(Wrapper):
     def close(self):
         plt.close(self.fig)
 
+    def step(self, action):
+        if type(self.env_core.targets) == list:
+            target_true_pos = [self.env_core.targets[i].state[:2] for i in range(self.env_core.num_targets)]
+        else:
+            target_true_pos = self.env_core.targets.state[:,:2]
+
+        self.traj[0].append(self.env_core.agent.state[0])
+        self.traj[1].append(self.env_core.agent.state[1])
+        for i in range(self.env_core.num_targets):
+            self.traj_y[i][0].append(target_true_pos[i][0])
+            self.traj_y[i][1].append(target_true_pos[i][1])
+        return self.env.step(action)
+
     def render(self, record=False, batch_outputs=None):
         state = self.env_core.agent.state
         num_targets = len(self.traj_y)
@@ -142,7 +155,7 @@ class Display2D(Wrapper):
             if self.local_view==1:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
                 ax0.imshow(
-                        np.reshape(self.env_core.local_map[j], (im_size,im_size)),
+                        np.reshape(self.env_core.local_map[0], (im_size,im_size)),
                         cmap='gray_r', origin='lower', vmin=-1, vmax=1,
                         extent=[local_mapmin[0], -local_mapmin[0],
                             0.0, -local_mapmin[0]*2])
@@ -155,14 +168,9 @@ class Display2D(Wrapper):
                             0.0, -local_mapmin[0]*2]) for j in range(self.local_view)]
             if not record :
                 plt.draw()
-                plt.pause(0.0005)
+                plt.pause(0.0001)
 
         self.n_frames += 1
-        self.traj[0].append(state[0])
-        self.traj[1].append(state[1])
-        for i in range(num_targets):
-            self.traj_y[i][0].append(target_true_pos[i][0])
-            self.traj_y[i][1].append(target_true_pos[i][1])
 
     def reset(self, **kwargs):
         self.traj_num += 1
