@@ -23,11 +23,13 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     num_targets : int
         the number of targets
     """
-    if T_steps is None:
-        if num_targets > 1:
-            T_steps = 150
-        else:
-            T_steps = 100
+    # if T_steps is None:
+    #     if num_targets > 1:
+    #         T_steps = 150
+    #     else:
+    #         T_steps = 100
+    T_steps = 100
+    
     local_view = 0
     if env_name == 'TargetTracking-v0':
         env0 = target_tracking.TargetTrackingEnv0(num_targets=num_targets, **kwargs)
