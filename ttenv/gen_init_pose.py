@@ -39,8 +39,9 @@ def main():
     while( not hasattr(timelimit_env, '_elapsed_steps')):
         timelimit_env = timelimit_env.env
     init_pose = []
+    from logger import TTENV_EVAL_SET
     while(len(init_pose) < args.nb_init_pose): # test episode
-        obs, done = env.reset(), False
+        obs, done = env.reset(**TTENV_EVAL_SET[0]), False
         if args.render:
             env.render()
         notes = input("%d, Pass? y/n"%len(init_pose))
@@ -49,7 +50,7 @@ def main():
                             'targets':[timelimit_env.env.targets[i].state for i in range(args.nb_targets)],
                             'belief_targets':[timelimit_env.env.belief_targets[i].state for i in range(args.nb_targets)]})
 
-    pickle.dump(init_pose, open(os.path.join(args.log_dir,'init_pose_random_1015.pkl'), 'wb'))
+    pickle.dump(init_pose, open(os.path.join(args.log_dir,'init_eval_6.pkl'), 'wb'))
 
 if __name__ == "__main__":
     main()

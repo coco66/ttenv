@@ -202,24 +202,34 @@ class GridMap(object):
                     self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
                     i += 1
 
-    def local_map_helper(self, im_size, odom, local_mapmin, R, get_visit_freq=False):
+    def local_map_helper(self, im_size, odom, local_mapmin, R):
         local_map = np.zeros((im_size, im_size))
-        local_visit_freq_map = np.zeros((im_size, im_size)) if get_visit_freq else None
         for r in range(im_size):
             for c in range(im_size):
                 xy_local = cell_to_se2([r,c], local_mapmin, self.mapres)
                 xy_global = np.matmul(R, xy_local) + odom[:2]
                 cell_global = self.se2_to_cell(xy_global)
                 local_map[c,r] = int(self.is_collision_ray_cell(cell_global))
-                if get_visit_freq:
-                    # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
-                    if local_map[c,r] == 1 :
-                        local_visit_freq_map[c,r] = 2.0
-                    elif self.in_bound(xy_global):
-                        local_visit_freq_map[c,r] += self.visit_freq_map[cell_global[0], cell_global[1]]
 
         local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
-        return local_map, local_mapmin_g, local_visit_freq_map
+        return local_map, local_mapmin_g
+
+    def local_visit_freq_map_helper(self, im_size, odom, local_mapmin, R):
+        local_visit_freq_map = np.zeros((im_size, im_size))
+        for r in range(im_size):
+            for c in range(im_size):
+                xy_local = cell_to_se2([r,c], local_mapmin, self.mapres)
+                xy_global = np.matmul(R, xy_local) + odom[:2]
+                cell_global = self.se2_to_cell(xy_global)
+
+                # Cells with an obstacle have 2.0. Others have visit frequency value from the global map.
+                if int(self.is_collision_ray_cell(cell_global)) == 1 :
+                    local_visit_freq_map[c,r] = 2.0
+                elif self.in_bound(xy_global):
+                    local_visit_freq_map[c,r] = self.visit_freq_map[cell_global[0], cell_global[1]]
+
+        local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
+        return local_visit_freq_map, local_mapmin_g
 
     def local_map(self, im_size, odom, get_visit_freq=False):
         """
@@ -228,8 +238,10 @@ class GridMap(object):
         R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
                   [np.sin(odom[2] - np.pi/2), np.cos(odom[2] - np.pi/2)]])
         local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
-        return self.local_map_helper(im_size, odom, local_mapmin, R, get_visit_freq)
-
+        if get_visit_freq:
+            return self.local_visit_freq_map_helper(im_size, odom, local_mapmin, R)
+        else:
+            return self.local_map_helper(im_size, odom, local_mapmin, R)
 
     def local_visit_map_surroundings(self, im_size, odom):
         """
@@ -246,12 +258,11 @@ class GridMap(object):
             np.array([-im_size/2*self.mapres[0], -im_size*self.mapres[1]]),
             ]
         for i in range(4):
-            _, local_mapmin_g_i, local_map_visit_i = self.local_map_helper(im_size,
-                                                        odom, local_mapmin[i], R,
-                                                        get_visit_freq=True)
+            local_map_visit_i, local_mapmin_g_i = self.local_visit_freq_map_helper(im_size,
+                                                        odom, local_mapmin[i], R)
             local_visit_maps.append(local_map_visit_i)
             local_mapmin_g.append(local_mapmin_g_i)
-        return None, local_mapmin_g, np.array(local_visit_maps)
+        return np.array(local_visit_maps), local_mapmin_g
 
 def bresenham2D(sx, sy, ex, ey):
     """

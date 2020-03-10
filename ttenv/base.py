@@ -82,6 +82,7 @@ class TargetTrackingBase(gym.Env):
 
     def observe_and_update_belief(self):
         observed = []
+        for i in range(self.num_targets):
             # Observe
             observation = self.observation(self.targets[i])
             observed.append(observation[0])

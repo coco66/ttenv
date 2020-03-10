@@ -48,7 +48,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
     def reset(self, **kwargs):
         _ = super().reset(**kwargs)
-        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
+        self.local_map, self.local_mapmin_g = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
         # For display purpose
@@ -58,7 +58,7 @@ class TargetTrackingEnv5(TargetTrackingEnv1):
 
     def step(self, action):
         _, reward, done, info = super().step(action)
-        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(self.im_size, self.agent.state)
+        self.local_map, self.local_mapmin_g = self.MAP.local_map(self.im_size, self.agent.state)
         obs = np.concatenate((self.local_map.flatten(), self.state))
 
         # For display purpose
@@ -174,9 +174,9 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
         self.state = np.array(self.state)
         self.MAP.reset_visit_freq_map()
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
+        self.local_map, self.local_mapmin_g  = self.MAP.local_map(
                                                     self.im_size, self.agent.state)
-        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+        local_visit_maps, local_mapmin_gs = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map.flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
@@ -220,9 +220,9 @@ class TargetTrackingEnv7(TargetTrackingEnv5):
                 np.log(LA.det(self.belief_targets[i].cov)), float(observed[i]), float(is_belief_blocked)])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        self.local_map, self.local_mapmin_g, _ = self.MAP.local_map(
+        self.local_map, self.local_mapmin_g = self.MAP.local_map(
                                                     self.im_size, self.agent.state)
-        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+        local_visit_maps, local_mapmin_gs = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map.flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
@@ -249,7 +249,7 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
         _ = super().reset(**kwargs)
         self.MAP.reset_visit_freq_map()
         self.MAP.update_visit_freq_map(1.0, self.agent.state)
-        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+        local_visit_maps, local_mapmin_gs = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
@@ -266,7 +266,7 @@ class TargetTrackingEnv8(TargetTrackingEnv5):
         decay_factor = np.exp(self.sampling_period*b_speed/self.sensor_r*np.log(0.5))
         self.MAP.update_visit_freq_map(decay_factor, self.agent.state)
 
-        _, local_mapmin_gs, local_visit_maps = self.MAP.local_visit_map_surroundings(
+        local_visit_maps, local_mapmin_gs = self.MAP.local_visit_map_surroundings(
                                                 self.im_size, self.agent.state)
         norm_local_map = (self.local_map[0].flatten() - 0.5) * 2
         norm_local_visit_map = local_visit_maps.flatten() - 1.0
