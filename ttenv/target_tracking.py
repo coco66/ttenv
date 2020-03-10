@@ -37,13 +37,10 @@ TargetTrackingEnv4 : SE2 Target model with UKF belief tracker [x,y,theta,v,w]
     Target : SE2 model [x,y,theta] + a control policy u=[v,w]
     Belief Target : UKF for SE2Vel model [x,y,theta,v,w]
 """
-import gym
 from gym import spaces, logger
-from gym.utils import seeding
 
 import numpy as np
 from numpy import linalg as LA
-import os, copy
 
 from ttenv.maps import map_utils
 from ttenv.agent_models import *
@@ -60,8 +57,6 @@ class TargetTrackingEnv0(TargetTrackingBase):
             is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v0'
         self.target_dim = 2
-        self.num_target_dep_vars = 4
-        self.num_target_indep_vars = 2
 
         # Set limits.
         self.set_limits()
@@ -115,6 +110,9 @@ class TargetTrackingEnv0(TargetTrackingBase):
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
     def set_limits(self):
+        self.num_target_dep_vars = 4
+        self.num_target_indep_vars = 2
+        
         self.limit = {} # 0: low, 1:high
         self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
         self.limit['target'] = [self.MAP.mapmin, self.MAP.mapmax]

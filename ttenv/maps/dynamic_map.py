@@ -23,14 +23,11 @@ class DynamicMap(GridMap):
         self.origin = map_config['origin']
         self.submap_coordinates = [[map_config['submaporigin'][2*i], map_config['submaporigin'][2*i+1]] for i in range(4)]
 
-        self.obstacles_idx = []
         self.obstacles = []
         obj_files = os.listdir(obj_lib_path)
         for obj_f in obj_files:
             if '.npy' in obj_f:
                 self.obstacles.append(np.load(os.path.join(obj_lib_path, obj_f)))
-                # 2 by #-of-nonzero-cells array.
-                # self.obstacles_idx.append(np.array(np.nonzero(np.load(os.path.join(obj_lib_path, obj_f)))))
         self.visit_freq_map = None
         self.visit_map = None
 
@@ -53,6 +50,7 @@ class DynamicMap(GridMap):
                                         + self.submap_coordinates[i][1]
             self.map[rotated_obs_idx_global_0, rotated_obs_idx_global_1] = 1.0
         self.map_linear = np.squeeze(self.map.astype(np.int8).reshape(-1, 1))
+        
         # TEMP : Logging purpose.
         self.chosen_idx = chosen_idx
         self.rot_angs = rot_angs

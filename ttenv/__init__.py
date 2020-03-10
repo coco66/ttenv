@@ -4,11 +4,24 @@ from ttenv import target_tracking, target_imtracking, target_seq_tracking
 def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
                                         T_steps=None, num_targets=1, **kwargs):
     """
+    Parameters:
+    ----------
     env_name : str
-        name of an environment. (e.g. 'Cartpole-v0')
-    type : str
-        type of an environment. One of ['atari', 'classic_control',
-        'classic_mdp','target_tracking']
+        name of an environment. (e.g. 'TargetTracking-v0')
+    render : bool
+        wether to render.
+    figID : int
+        figure ID for rendering and/or recording.
+    record : bool
+        whether to record a video.
+    ros : bool
+        whether to use ROS.
+    directory :str
+        a path to store a video file if record is True.
+    T_steps : int
+        the number of steps per episode.
+    num_targets : int
+        the number of targets
     """
     if T_steps is None:
         if num_targets > 1:

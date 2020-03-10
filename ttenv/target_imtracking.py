@@ -1,12 +1,4 @@
-"""Target Tracking Environments for Reinforcement Learning. OpenAI gym format
-[Vairables]
-d: radial coordinate of a belief target in the learner frame
-alpha : angular coordinate of a belief target in the learner frame
-ddot : radial velocity of a belief target in the learner frame
-alphadot : angular velocity of a belief target in the learner frame
-Sigma : Covariance of a belief target
-o_d : linear distance to the closet obstacle point
-o_alpha : angular distance to the closet obstacle point
+"""Target Tracking Environments for Reinforcement Learning with an Image Input. OpenAI gym format
 [Environment Descriptions]
 TargetTrackingEnv5 : Local Image-based Double Integrator Target model with KF belief tracker
     RL state: [local_map_image, [d, alpha, ddot, alphadot, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]]
@@ -20,12 +12,10 @@ TargetTrackingEnv7 : Local map & Local visit frequency maps of outside the front
     Therefore, the image input fed to the convolutional neural network has five depth.
     This intend to use a smaller image size.
 """
-import gym
 from gym import spaces, logger
 
 import numpy as np
 from numpy import linalg as LA
-import os, copy
 
 from ttenv.agent_models import *
 from ttenv.policies import *

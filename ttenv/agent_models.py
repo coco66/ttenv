@@ -1,15 +1,15 @@
 """Dynamic Object Models
 
-AgentDoubleInt2D : Double Integrator Model in 2D
-                   state: x,y,xdot,ydot
-AgentSE2 : SE2 Model
+The following models are included:
+
+    AgentDoubleInt2D : Double Integrator Model in 2D
+                        state: x,y,xdot,ydot
+    AgentDoubleInt2D_Nonlinear : Double Integrator Model with non-linear term for obstalce avoidance in 2D
+                        state: x,y,xdot,ydot
+    AgentSE2 : SE2 Model
            state x,y,theta
 
-Agent2DFixedPath : Model with a pre-defined path
-Agent_InfoPlanner : Model from the InfoPlanner repository
-
-SE2Dynamics : update dynamics function with a control input -- linear, angular velocities
-SEDynamicsVel : update dynamics function for contant linear and angular velocities
+    Agent2DFixedPath : Model with a pre-defined path
 """
 
 import numpy as np
@@ -87,26 +87,47 @@ class AgentDoubleInt2D_Nonlinear(AgentDoubleInt2D):
         return is_col
 
     def range_check(self):
+        """
+        Limit the position and the velocity.
+        self.limit[:][2] = self.limit[:][3] = speed limit. The velocity components
+        are clipped proportional to the original values.
+        """
         self.state[:2] = np.clip(self.state[:2], self.limit[0][:2], self.limit[1][:2])
         v_square = self.state[2:]**2
         del_v = np.sum(v_square) - self.limit[1][2]**2
         if del_v > 0.0:
-            self.state[2] = np.sign(self.state[2]) * np.sqrt(max(0.0, v_square[0] - del_v * v_square[0] / (v_square[0] + v_square[1])))
-            self.state[3] = np.sign(self.state[3]) * np.sqrt(max(0.0, v_square[1] - del_v * v_square[1] / (v_square[0] + v_square[1])))
+            self.state[2] = np.sign(self.state[2]) * np.sqrt(max(0.0,
+                v_square[0] - del_v * v_square[0] / (v_square[0] + v_square[1])))
+            self.state[3] = np.sign(self.state[3]) * np.sqrt(max(0.0,
+                v_square[1] - del_v * v_square[1] / (v_square[0] + v_square[1])))
 
     def collision_control(self):
+        """
+        Assigns a new velocity deviating the agent with an angle (pi/2, pi) from
+        the closest obstacle point.
+        """
         odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
         obs_pos = self.obs_check_func(odom)
         v = np.sqrt(np.sum(np.square(self.state[2:]))) + np.random.normal(0.0,1.0)
-        th = obs_pos[1] - (1 + np.random.random()) * np.pi/2 if obs_pos[1] >= 0 else obs_pos[1] + (1 + np.random.random()) * np.pi/2
-        vx = v * np.cos(th + odom[2])
-        vy = v * np.sin(th + odom[2])
-        state = np.array([self.state[0], self.state[1], vx, vy])
+        if obs_pos[1] >= 0:
+            th = obs_pos[1] - (1 + np.random.random()) * np.pi/2
+        else:
+            th = obs_pos[1] + (1 + np.random.random()) * np.pi/2
+
+        state = np.array([self.state[0], self.state[1], v * np.cos(th + odom[2]), v * np.sin(th + odom[2])])
         return state
 
     def obstacle_detour_maneuver(self, r_margin=1.0):
-        # self.state is the current state.
-        # new_state is the upated state but yet not confirmed.
+        """
+        Returns del_vx, del_vy which will be added to the new state.
+        This provides a repultive force from the closest obstacle point based
+        on the current velocity, a linear distance, and an angular distance.
+
+        Parameters:
+        ----------
+        r_margin : float. A margin from an obstalce that you want to consider
+        as the minimum distance the target can get close to the obstacle.
+        """
         odom = [self.state[0], self.state[1], np.arctan2(self.state[3], self.state[2])]
         obs_pos = self.obs_check_func(odom)
         speed = np.sqrt(np.sum(self.state[2:]**2))
@@ -134,7 +155,9 @@ class AgentSE2(Agent):
 
     def update(self, control_input=None, margin_pos=None, col=False):
         """
-        control_input : [linear_velocity, angular_velocity]
+        Parameters:
+        ----------
+        control_input : list. [linear_velocity, angular_velocity]
         margin_pos : a minimum distance to a target
         """
         if control_input is None:
@@ -167,30 +190,6 @@ class AgentSE2(Agent):
 
         return is_col
 
-def SE2Dynamics(x, dt, u):
-    assert(len(x)==3)
-    tw = dt * u[1]
-
-    # Update the agent state
-    if abs(tw) < 0.001:
-        diff = np.array([dt*u[0]*np.cos(x[2]+tw/2),
-                dt*u[0]*np.sin(x[2]+tw/2),
-                tw])
-    else:
-        diff = np.array([u[0]/u[1]*(np.sin(x[2]+tw) - np.sin(x[2])),
-                u[0]/u[1]*(np.cos(x[2]) - np.cos(x[2]+tw)),
-                tw])
-    new_x = x + diff
-    new_x[2] = util.wrap_around(new_x[2])
-    return new_x
-
-def SE2DynamicsVel(x, dt, u=None):
-    assert(len(x)==5) # x = [x,y,theta,v,w]
-    if u is None:
-        u = x[-2:]
-    odom = SE2Dynamics(x[:3], dt, u)
-    return np.concatenate((odom, u))
-
 class Agent2DFixedPath(Agent):
     """
     A predefined path for each target must be provided.
@@ -211,3 +210,33 @@ class Agent2DFixedPath(Agent):
     def reset(self, init_state):
         self.t = 0
         self.state = init_state
+
+def SE2Dynamics(x, dt, u):
+    """
+    update dynamics function with a control input -- linear, angular velocities
+    """
+    assert(len(x)==3)
+    tw = dt * u[1]
+
+    # Update the agent state
+    if abs(tw) < 0.001:
+        diff = np.array([dt*u[0]*np.cos(x[2]+tw/2),
+                dt*u[0]*np.sin(x[2]+tw/2),
+                tw])
+    else:
+        diff = np.array([u[0]/u[1]*(np.sin(x[2]+tw) - np.sin(x[2])),
+                u[0]/u[1]*(np.cos(x[2]) - np.cos(x[2]+tw)),
+                tw])
+    new_x = x + diff
+    new_x[2] = util.wrap_around(new_x[2])
+    return new_x
+
+def SE2DynamicsVel(x, dt, u=None):
+    """
+    update dynamics function for contant linear and angular velocities
+    """
+    assert(len(x)==5) # x = [x,y,theta,v,w]
+    if u is None:
+        u = x[-2:]
+    odom = SE2Dynamics(x[:3], dt, u)
+    return np.concatenate((odom, u))

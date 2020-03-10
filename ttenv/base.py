@@ -1,3 +1,6 @@
+"""
+Target Tracking Environment Base Model.
+"""
 import gym
 from gym import spaces, logger
 from gym.utils import seeding
@@ -55,6 +58,39 @@ class TargetTrackingBase(gym.Env):
         self.target_init_cov = METADATA['target_init_cov']
 
         self.reset_num = 0
+
+    def reset(self, **kwargs):
+        self.MAP.generate_map(**kwargs)
+        self.has_discovered = [0] * self.num_targets
+        self.state = []
+        self.num_collisions = 0
+        return self.get_init_pose(**kwargs)
+
+    def step(self, action):
+        # The agent performs an action (t -> t+1)
+        action_vw = self.action_map[action]
+        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+        self.num_collisions += int(is_col)
+
+        # The targets move (t -> t+1)
+        for i in range(self.num_targets):
+            if self.has_discovered[i]:
+                self.targets[i].update(self.agent.state[:2])
+
+        # The targets are observed by the agent (z_t+1) and the beliefs are updated.
+        observed = self.observe_and_update_belief()
+
+        # Compute a reward from b_t+1|t+1 or b_t+1|t.
+        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
+                                                                is_col=is_col)
+        # Predict the target for the next step, b_t+2|t+1
+        for i in range(self.num_targets):
+            self.belief_targets[i].predict()
+
+        # Compute the RL state.
+        self.state_func(action_vw, observed)
+
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
     def get_init_pose(self, init_pose_list=[], target_path=[], **kwargs):
         """Generates initial positions for the agent, targets, and target beliefs.
@@ -213,39 +249,6 @@ class TargetTrackingBase(gym.Env):
 
     def get_reward(self, is_training=True, **kwargs):
         return reward_fun_1(self.belief_targets, is_training=is_training, **kwargs)
-
-    def reset(self, **kwargs):
-        self.MAP.generate_map(**kwargs)
-        self.has_discovered = [0] * self.num_targets
-        self.state = []
-        self.num_collisions = 0
-        return self.get_init_pose(**kwargs)
-
-    def step(self, action):
-        # The agent performs an action (t -> t+1)
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        self.num_collisions += int(is_col)
-
-        # The targets move (t -> t+1)
-        for i in range(self.num_targets):
-            if self.has_discovered[i]:
-                self.targets[i].update(self.agent.state[:2])
-
-        # The targets are observed by the agent (z_t+1) and the beliefs are updated.
-        observed = self.observe_and_update_belief()
-
-        # Compute a reward from b_t+1|t+1 or b_t+1|t.
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
-                                                                is_col=is_col)
-        # Predict the target for the next step, b_t+2|t+1
-        for i in range(self.num_targets):
-            self.belief_targets[i].predict()
-
-        # Compute the RL state.
-        self.state_func(action_vw, observed)
-
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 def reward_fun_0(belief_targets, obstacles_pt, observed, is_training=True,
         c_mean=0.1, c_std=0.1, c_observed=0.1, c_penalty=1.0):
