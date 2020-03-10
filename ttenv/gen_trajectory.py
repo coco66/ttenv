@@ -19,52 +19,61 @@ import os, time
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--env', help='environment ID', default='TargetTracking-v1')
-parser.add_argument('--render', type=int, default=1)
+parser.add_argument('--render', type=int, default=0)
 parser.add_argument('--map', type=str, default="obstacles02")
 parser.add_argument('--nb_targets', type=int, default=1)
 parser.add_argument('--nb_paths', type=int, default=10)
 parser.add_argument('--log_dir', type=str, default='.')
-parser.add_argument('--eval_num', type=int, default=0)
+parser.add_argument('--eval_max_id', type=int, default=6)
 args = parser.parse_args()
 
 def main():
     env = envs.make(args.env,
                     'target_tracking',
-                    render=bool(args.render),
+                    render=True,
                     directory=args.log_dir,
                     map_name=args.map,
                     num_targets=args.nb_targets,
                     is_training=False,
                     )
-    timelimit_env = env
-    while( not hasattr(timelimit_env, '_elapsed_steps')):
-        timelimit_env = timelimit_env.env
-    init_pose = []
-    target_paths = []
-    from logger import TTENV_EVAL_SET
-    while(len(init_pose) < args.nb_paths): # test episode
-        _, done = env.reset(**TTENV_EVAL_SET[args.eval_num]), False
-        if args.render:
-            env.render()
-        notes = input("%d, Init Pose Pass? y/n"%len(init_pose))
-        if notes == "y":
-            init_pose_k = {'agent':timelimit_env.env.agent.state,
-                            'targets':[timelimit_env.env.targets[i].state for i in range(args.nb_targets)],
-                            'belief_targets':[timelimit_env.env.belief_targets[i].state for i in range(args.nb_targets)]}
-            target_path_t = [[]] * args.nb_targets
-            while not done:
-                _, _, done, _ = env.step(env.action_space.sample())
-                if args.render:
-                    env.render()
-                for i in range(args.nb_targets):
-                    target_path_t[i].append(timelimit_env.env.targets[i].state)
-            notes = input("%d, Pass? y/n"%len(init_pose))
-            if notes == "y":
-                init_pose.append(init_pose_k)
-                target_paths.append(target_path_t)
+    env_core = env
+    while( not hasattr(env_core, '_elapsed_steps')):
+        env_core = env_core.env
+    env_core = env_core.env
 
-    np.save(open(os.path.join(args.log_dir,'path_%d.npy'%args.eval_num), 'wb'), target_paths)
-    pickle.dump(init_pose, open(os.path.join(args.log_dir,'init_eval_%d.pkl'%args.eval_num), 'wb'))
+    from logger import TTENV_TEST_SET
+    for eval_num in range(args.eval_max_id):
+        print("TTENV_TEST_SET: Eval Num %d ..."%eval_num)
+        init_pose = []
+        target_paths = []
+        map_info = []
+        while(len(init_pose) < args.nb_paths): # test episode
+            _, done = env.reset(**TTENV_TEST_SET[eval_num]), False
+            env.render()
+            notes = input("%d, Init Pose Pass? y/n"%len(init_pose))
+            if notes == "y":
+                init_pose_k = {'agent':env_core.agent.state,
+                                'targets':[env_core.targets[i].state for i in range(args.nb_targets)],
+                                'belief_targets':[env_core.belief_targets[i].state for i in range(args.nb_targets)]}
+                target_path_t = [[]] * args.nb_targets
+                while not done:
+                    _, _, done, _ = env.step(env.action_space.sample())
+                    if args.render:
+                        env.render()
+                    for i in range(args.nb_targets):
+                        target_path_t[i].append(env_core.targets[i].state)
+                env.render()
+                notes = input("%d, Pass? y/n"%len(init_pose))
+                if notes == "y":
+                    init_pose.append(init_pose_k)
+                    target_paths.append(target_path_t)
+                    if args.map == 'dynamic_map':
+                        map_info.append({'chosen_idx': env_core.MAP.chosen_idx, 'rot_angs': env_core.MAP.rot_angs })
+
+        np.save(open(os.path.join(args.log_dir,'path_%d.npy'%eval_num), 'wb'), target_paths)
+        pickle.dump(init_pose, open(os.path.join(args.log_dir,'init_eval_%d.pkl'%eval_num), 'wb'))
+        if args.map == 'dynamic_map':
+            pickle.dump(map_info, open(os.path.join(args.log_dir, 'map_info_%d.pkl'%eval_num), 'wb'))
 
 if __name__ == "__main__":
     main()

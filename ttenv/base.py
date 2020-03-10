@@ -215,7 +215,7 @@ class TargetTrackingBase(gym.Env):
         return reward_fun_1(self.belief_targets, is_training=is_training, **kwargs)
 
     def reset(self, **kwargs):
-        self.MAP.generate_map()
+        self.MAP.generate_map(**kwargs)
         self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
