@@ -25,6 +25,7 @@ class DynamicMap(GridMap):
 
         self.obstacles = []
         obj_files = os.listdir(obj_lib_path)
+        obj_files = sorted(obj_files)
         for obj_f in obj_files:
             if '.npy' in obj_f:
                 self.obstacles.append(np.load(os.path.join(obj_lib_path, obj_f)))

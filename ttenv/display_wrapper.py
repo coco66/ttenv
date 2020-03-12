@@ -184,7 +184,7 @@ class Video2D(Wrapper):
         self.local_view = local_view
         self.skip = skip
         self.moviewriter = animation.FFMpegWriter()
-        fnum = np.random.randint(0,99)
+        fnum = np.random.randint(0,1000)
         fname = os.path.join(dirname, 'train_%d.mp4'%fnum)
         self.moviewriter.setup(fig=env.fig, outfile=fname, dpi=dpi)
         if self.local_view:
