@@ -7,4 +7,4 @@ origin: [50.5, 50.5]
 origincells: [101, 101]
 datatype: c
 storage: colmajor
-mappath: emptyMap.cfg
+mappath: empty.cfg
