@@ -86,7 +86,7 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
                                                 init_pos=t_init_sets,
                                                 init_vel=self.target_init_vel,
                                                 q=METADATA['const_q_true'],
-                                                max_vel=METADATA['target_vel_limit'])  # Integrator Ground truth Model
+                                                max_vel=METADATA['target_speed_limit'])  # Integrator Ground truth Model
         belief_target = self.cfg.setup_integrator_belief(n_targets=self.num_targets, q=METADATA['const_q'],
                                                 init_pos=t_init_b_sets,
                                                 cov_pos=self.target_init_cov, cov_vel=self.target_init_cov,
@@ -111,14 +111,14 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
             detcov = [LA.det(cov[self.target_dim*n: self.target_dim*(n+1), self.target_dim*n: self.target_dim*(n+1)]) for n in range(self.num_targets)]
             reward = - 0.1 * np.log(np.mean(detcov) + np.std(detcov)) - penalty
             reward = max(0.0, reward) + np.mean(observed)
-        test_reward = None
 
+        mean_nlogdetcov = None
         if not(is_training):
             cov = self.agent.get_belief_cov()
             logdetcov = [np.log(LA.det(cov[self.target_dim*n: self.target_dim*(n+1), self.target_dim*n: self.target_dim*(n+1)])) for n in range(self.num_targets)]
-            test_reward = -np.mean(logdetcov)
+            mean_nlogdetcov = -np.mean(logdetcov)
 
-        return reward, False, test_reward
+        return reward, False, mean_nlogdetcov
 
     def step(self, action):
         self.agent.update(action, self.targets.state)
@@ -127,14 +127,14 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
         self.targets.update()
         # Observe
         measurements = self.agent.observation(self.targets.target)
-        obstacles_pt = map_utils.get_cloest_obstacle(self.MAP, self.agent.state)
+        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
         # Update the belief of the agent on the target using KF
         GaussianBelief = infoplanner.IGL.MultiTargetFilter(measurements, self.agent.agent, debug=False)
         self.agent.update_belief(GaussianBelief)
         self.belief_targets.update(self.agent.get_belief_state(), self.agent.get_belief_cov())
 
         observed = [m.validity for m in measurements]
-        reward, done, test_reward = self.get_reward(obstacles_pt, observed, self.is_training)
+        reward, done, mean_nlogdetcov = self.get_reward(obstacles_pt, observed, self.is_training)
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
 
@@ -157,7 +157,7 @@ class TargetTrackingInfoPlanner1(TargetTrackingEnv1):
 
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state, reward, done, {'test_reward': test_reward}
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
 
 class Agent_InfoPlanner(Agent):
     def __init__(self,  dim, sampling_period, limit, collision_func,
