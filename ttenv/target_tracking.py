@@ -112,7 +112,7 @@ class TargetTrackingEnv0(TargetTrackingBase):
     def set_limits(self):
         self.num_target_dep_vars = 4
         self.num_target_indep_vars = 2
-        
+
         self.limit = {} # 0: low, 1:high
         self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
         self.limit['target'] = [self.MAP.mapmin, self.MAP.mapmax]
@@ -163,6 +163,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
         self.build_models(const_q=METADATA['const_q'], known_noise=known_noise)
 
     def reset(self, **kwargs):
+        # Always set the limits first.
         if 'target_speed_limit' in kwargs:
             self.set_limits(target_speed_limit=kwargs['target_speed_limit'])
 
@@ -182,7 +183,8 @@ class TargetTrackingEnv1(TargetTrackingBase):
         observed = self.observe_and_update_belief()
 
         # Predict the target for the next step, b_1|0.
-        self.belief_targets[i].predict()
+        for i in range(self.num_targets):
+            self.belief_targets[i].predict()
 
         # Compute the RL state.
         self.state_func([0.0, 0.0], observed)
@@ -210,7 +212,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
 
-        # Update the visit map for the evaluation purpose.
+        # Update the visit map when there is any target not observed for the evaluation purpose.
         if self.MAP.visit_map is not None:
             self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
 
@@ -242,27 +244,35 @@ class TargetTrackingEnv1(TargetTrackingBase):
         # Build a robot
         self.agent = AgentSE2(dim=3, sampling_period=self.sampling_period, limit=self.limit['agent'],
                             collision_func=lambda x: self.MAP.is_collision(x))
-
         # Build targets
-        self.targetA = np.concatenate((np.concatenate((np.eye(2), self.sampling_period*np.eye(2)), axis=1),
+        self.targetA = np.concatenate((np.concatenate((np.eye(2),
+                                        self.sampling_period*np.eye(2)), axis=1),
                                         [[0,0,1,0],[0,0,0,1]]))
         self.target_noise_cov = self.const_q * np.concatenate((
-                            np.concatenate((self.sampling_period**3/3*np.eye(2), self.sampling_period**2/2*np.eye(2)), axis=1),
-                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+                            np.concatenate((self.sampling_period**3/3*np.eye(2),
+                                self.sampling_period**2/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period**2/2*np.eye(2),
+                                    self.sampling_period*np.eye(2)),axis=1) ))
         if known_noise:
             self.target_true_noise_sd = self.target_noise_cov
         else:
             self.target_true_noise_sd = self.const_q_true * np.concatenate((
-                        np.concatenate((self.sampling_period**2/2*np.eye(2), self.sampling_period/2*np.eye(2)), axis=1),
-                        np.concatenate((self.sampling_period/2*np.eye(2), self.sampling_period*np.eye(2)),axis=1) ))
+                        np.concatenate((self.sampling_period**2/2*np.eye(2),
+                                    self.sampling_period/2*np.eye(2)), axis=1),
+                        np.concatenate((self.sampling_period/2*np.eye(2),
+                                    self.sampling_period*np.eye(2)),axis=1) ))
 
-        self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim, self.sampling_period, self.limit['target'],
+        self.targets = [AgentDoubleInt2D_Nonlinear(self.target_dim,
+                            self.sampling_period, self.limit['target'],
                             lambda x: self.MAP.is_collision(x),
                             W=self.target_true_noise_sd, A=self.targetA,
                             obs_check_func=lambda x: self.MAP.get_closest_obstacle(
-                                x, fov=2*np.pi, r_max=10e2)) for _ in range(self.num_targets)]
-        self.belief_targets = [KFbelief(dim=self.target_dim, limit=self.limit['target'], A=self.targetA,
-                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
+                                x, fov=2*np.pi, r_max=10e2))
+                            for _ in range(self.num_targets)]
+        self.belief_targets = [KFbelief(dim=self.target_dim,
+                            limit=self.limit['target'], A=self.targetA,
+                            W=self.target_noise_cov,
+                            obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(self.num_targets)]
 
