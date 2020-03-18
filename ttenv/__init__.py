@@ -29,7 +29,7 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     #     else:
     #         T_steps = 100
     T_steps = 100
-    
+
     local_view = 0
     if env_name == 'TargetTracking-v0':
         env0 = target_tracking.TargetTrackingEnv0(num_targets=num_targets, **kwargs)
@@ -76,6 +76,9 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-info2':
+        from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner2
+        env0 = TargetTrackingInfoPlanner2(num_targets=num_targets, **kwargs)
     else:
         raise ValueError('No such environment exists.')
 

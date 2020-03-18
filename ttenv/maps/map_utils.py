@@ -69,13 +69,17 @@ class GridMap(object):
         else:
             return False
 
-    def is_collision(self, pos):
+    def is_collision(self, pos, margin=None):
         if not(self.in_bound(pos)):
             return True
         else:
             if self.map is not None:
-                n = np.ceil(self.margin2wall/self.mapres).astype(np.int16)
                 cell = np.minimum([self.mapdim[0]-1,self.mapdim[1]-1] , self.se2_to_cell(pos))
+                if margin is None:
+                    margin = self.margin2wall
+                elif margin == 0.0:
+                    return self.is_collision_ray_cell(cell)
+                n = np.ceil(margin/self.mapres).astype(np.int16)
                 for r_add in np.arange(-n[1],n[1],1):
                     for c_add in np.arange(-n[0],n[0],1):
                         x_c = np.clip(cell[0]+r_add, 0, self.mapdim[0]-1).astype(np.int16)
@@ -239,6 +243,7 @@ class GridMap(object):
         ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
         closest_obstacle = (r_max, 0.0)
         start_rc = self.se2_to_cell(odom[:2])
+        visit_map_tmp = np.zeros(self.mapdim)
         for ang in ang_grid:
             end_pt_global_frame = coord_change2g(np.array(
                             [r_max*np.cos(ang), r_max*np.sin(ang)]),
@@ -252,8 +257,11 @@ class GridMap(object):
                 if self.visit_freq_map is not None:
                     self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
                 if self.visit_map is not None and not(observed):
-                    self.visit_map[ray_cells[0,i], ray_cells[1,i]] += 1.0
+                    # self.visit_map[ray_cells[0,i], ray_cells[1,i]] += 1.0
+                    visit_map_tmp[ray_cells[0,i], ray_cells[1,i]] = 1.0
                 i += 1
+        if self.visit_map is not None and not(observed):
+            self.visit_map += visit_map_tmp
 
     def update_visit_freq_map_full(self, odom, decay_factor=1.0, ang_res=0.05,
                 fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'], observed=True):
@@ -297,7 +305,7 @@ class GridMap(object):
                 cell_global = self.se2_to_cell(xy_global)
                 local_map[c,r] = int(self.is_collision_ray_cell(cell_global))
                 if get_visit_freq:
-                    # Cells with an obstacle have 1.0. Others have visit frequency value from the global map.
+                    # Cells with an obstacle have 2.0. Others have visit frequency value from the global map.
                     if local_map[c,r] == 1 :
                         local_visit_freq_map[c,r] = 2.0
                     elif self.in_bound(xy_global):
