@@ -24,7 +24,7 @@ parser.add_argument('--map', type=str, default="obstacles02")
 parser.add_argument('--nb_targets', type=int, default=1)
 parser.add_argument('--nb_paths', type=int, default=10)
 parser.add_argument('--log_dir', type=str, default='.')
-parser.add_argument('--eval_max_id', type=int, default=6)
+parser.add_argument('--manual_check', type=int, default=1)
 args = parser.parse_args()
 
 def main():
@@ -41,17 +41,20 @@ def main():
         env_core = env_core.env
     env_core = env_core.env
 
-    from logger import TTENV_TEST_SET
-    for eval_num in range(args.eval_max_id):
-        print("TTENV_TEST_SET: Eval Num %d ..."%eval_num)
+    from logger import TTENV_TEST_SET_PUB
+    for eval_num in range(len(TTENV_TEST_SET_PUB)):
+        print("TTENV_TEST_SET_PUB: Eval Num %d ..."%eval_num)
         init_pose = []
         target_paths = []
         map_info = []
         while(len(init_pose) < args.nb_paths): # test episode
-            _, done = env.reset(**TTENV_TEST_SET[eval_num]), False
-            env.render()
-            notes = input("%d, Init Pose Pass? y/n"%len(init_pose))
-            if notes == "y":
+            _, done = env.reset(**TTENV_TEST_SET_PUB[eval_num]), False
+            env_core.has_discovered = [1] * args.nb_targets
+            proceed = False
+            if args.manual_check:
+                env.render()
+                proceed = ("y" == input("%d, Init Pose Pass? (y/n) "%len(init_pose)))
+            if proceed or not(args.manual_check):
                 init_pose_k = {'agent':env_core.agent.state,
                                 'targets':[env_core.targets[i].state for i in range(args.nb_targets)],
                                 'belief_targets':[env_core.belief_targets[i].state for i in range(args.nb_targets)]}
@@ -62,9 +65,11 @@ def main():
                         env.render()
                     for i in range(args.nb_targets):
                         target_path_t[i].append(env_core.targets[i].state)
-                env.render()
-                notes = input("%d, Pass? y/n"%len(init_pose))
-                if notes == "y":
+                proceed = False
+                if args.manual_check:
+                    env.render()
+                    proceed = ("y" == input("%d, Pass? (y/n) "%len(init_pose)))
+                if proceed or not(args.manual_check):
                     init_pose.append(init_pose_k)
                     target_paths.append(target_path_t)
                     if args.map == 'dynamic_map':
