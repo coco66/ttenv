@@ -23,7 +23,7 @@ parser.add_argument('--eval_param_dir', type=str, default=".")
 parser.add_argument('--eval_id_max', type=int, default=4)
 args = parser.parse_args()
 
-if __name__ == "__main__":
+def evaluate():
     np.random.seed(args.seed)
     logdir = os.path.join(args.log_dir, '_'.join([args.env, datetime.datetime.now().strftime("%m%d%H%M")]))
     if not os.path.exists(logdir):
@@ -90,7 +90,7 @@ if __name__ == "__main__":
                                                         "TTENV_MULTI_TEST_SET", eval_id)
         else:
             from ttenv.metadata import METADATA
-            f_desc = "Eval type: %s from METADATA V%d"%(args.eval_type, METADATA['version'])
+            f_desc = "Eval type: %s from METADATA V%s"%(args.eval_type, str(METADATA['version']))
 
         log_data = {
                     'time_elapsed': [],
@@ -182,3 +182,81 @@ if __name__ == "__main__":
         pickle.dump(log_data,
                 open(os.path.join(logdir,'test_result_%d.pkl'%eval_id), 'wb'))
         write_log_data(log_data, f_desc, logdir)
+
+def visit_test(seed):
+    np.random.seed(seed)
+
+    logdir = os.path.join(args.log_dir, '_'.join(['test', datetime.datetime.now().strftime("%m%d%H%M")]))
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+    else:
+        ValueError("The directory already exists...", logdir)
+
+    planner = InfoPlanner(n_controls=args.n_controls)
+
+    print("Visit Frequency Evaluation")
+    env = ttenv.make(args.env,
+                    render = bool(args.render),
+                    record = bool(args.record),
+                    ros = bool(args.ros),
+                    directory=logdir,
+                    map_name=args.map,
+                    num_targets=args.nb_targets,
+                    is_training=False
+                    )
+    env_core = env
+    while( not hasattr(env_core, '_elapsed_steps')):
+        env_core = env_core.env
+    env_core = env_core.env
+
+    num_target_dep_vars = env_core.num_target_dep_vars
+
+    nb_test_episodes = args.repeat
+    from logger import TTENV_TEST_SET
+    init_params = TTENV_TEST_SET[4]
+    f_desc = "Evaluation for Visit frequency -  TTENV_TEST_SET[4]"
+
+    f, ax = plt.subplots()
+    ep = 0
+    visit_map_total = np.zeros(env_core.MAP.mapdim)
+    while(ep < nb_test_episodes):
+        # Reset
+        obs = env.reset(**init_params)
+        done = False
+        env_core.MAP.reset_visit_map()
+        planner.reset()
+
+        # # Plot the initial target and belief positions.
+        # for i in range(args.nb_targets):
+        #     ax.plot(env_core.targets[i].state[1], env_core.targets[i].state[0],
+        #             'ro', markersize=8, fillstyle='full')
+        #     ax.plot(env_core.belief_targets[i].state[1],
+        #             env_core.belief_targets[i].state[0], 'ro', markersize=10,
+        #             markeredgewidth=2, fillstyle='none')
+
+        while(not done):
+            if args.render:
+                env.render()
+
+            # Apply Control
+            obs, rew, done, info = env.step(planner.act(env_core.agent.agent))
+        visit_map_total += env_core.MAP.visit_map
+        ep += 1
+
+    if args.record :
+        env.finish()
+    log_data = {'visit_map': visit_map_total/nb_test_episodes}
+    pickle.dump(log_data,
+            open(os.path.join(logdir,'visit_test_result.pkl'), 'wb'))
+
+    cmap = 'viridis'
+    ax.imshow(visit_map_total/nb_test_episodes, cmap=cmap, origin='lower',
+                        extent=[env_core.MAP.mapmin[0], env_core.MAP.mapmax[0],
+                                env_core.MAP.mapmin[1], env_core.MAP.mapmax[1]])
+    from matplotlib import cm as cm
+    f.colorbar(cm.ScalarMappable(cmap=cmap), ax=ax)
+    f.savefig(os.path.join(logdir, "visit_map.png"))
+
+if __name__ == "__main__":
+    evaluate()
+    # visit_test(args.seed)
