@@ -41,14 +41,18 @@ def main():
         env_core = env_core.env
     env_core = env_core.env
 
-    from logger import TTENV_TEST_SET_PUB
-    for eval_num in range(len(TTENV_TEST_SET_PUB)):
+    from logger import TTENV_TEST_SET_PUB, TTENV_MULTI_TEST_SET, TTENV_TEST_SET_PUB_MORE
+    if args.nb_targets > 1:
+        test_params = TTENV_MULTI_TEST_SET
+    else:
+        test_params = TTENV_TEST_SET_PUB
+    for eval_num in range(len(test_params)):
         print("TTENV_TEST_SET_PUB: Eval Num %d ..."%eval_num)
         init_pose = []
         target_paths = []
         map_info = []
         while(len(init_pose) < args.nb_paths): # test episode
-            _, done = env.reset(**TTENV_TEST_SET_PUB[eval_num]), False
+            _, done = env.reset(**test_params[eval_num]), False
             env_core.has_discovered = [1] * args.nb_targets
             proceed = False
             if args.manual_check:
