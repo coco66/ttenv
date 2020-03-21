@@ -57,9 +57,6 @@ if __name__ == "__main__":
         obs = env.reset(init_pose_list=given_init_pose, **init_params)
         done = False
         env_core.MAP.reset_visit_map()
-        lb, ub = get_nlogdetcov_bounds(
-                        env_core.target_init_cov*np.eye(env_core.target_dim),
-                        env_core.targetA, env_core.target_noise_cov, 100)
 
         planner.reset()
 
