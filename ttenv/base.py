@@ -43,10 +43,10 @@ class TargetTrackingBase(gym.Env):
         self.fov = METADATA['fov']
 
         map_dir_path = '/'.join(map_utils.__file__.split('/')[:-1])
-        if map_name == 'dynamic_map':
+        if 'dynamic_map' in map_name :
             self.MAP = DynamicMap(
-                obj_lib_path = os.path.join(map_dir_path, 'lib_obstacles'),
-                map_path = os.path.join(map_dir_path, map_name),
+                map_dir_path = map_dir_path,
+                map_name = map_name,
                 margin2wall = METADATA['margin2wall'])
         else:
             self.MAP = map_utils.GridMap(

@@ -7,14 +7,15 @@ from ttenv.maps.map_utils import GridMap
 import ttenv.util as util
 
 class DynamicMap(GridMap):
-    def __init__(self, obj_lib_path, map_path, margin2wall=0.5):
+    def __init__(self, map_dir_path, map_name, margin2wall=0.5):
         """
         Parameters
         ---------
         obj_lib_path : A path to a folder where all obstacle objects are stored.
             The folder must contain only obstacle objects in .npy files.
         """
-        map_config = yaml.load(open(map_path+".yaml", "r"))
+        map_config = yaml.load(open(os.path.join(map_dir_path, map_name+".yaml"), "r"))
+        obj_lib_path = os.path.join(map_dir_path, map_config['lib_path'])
         self.mapdim = map_config['mapdim']
         self.mapres = np.array(map_config['mapres'])
         self.mapmin = np.array(map_config['mapmin'])

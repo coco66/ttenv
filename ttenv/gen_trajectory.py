@@ -72,12 +72,12 @@ def main():
                 if proceed or not(args.manual_check):
                     init_pose.append(init_pose_k)
                     target_paths.append(target_path_t)
-                    if args.map == 'dynamic_map':
+                    if 'dynamic_map' in args.map:
                         map_info.append({'chosen_idx': env_core.MAP.chosen_idx, 'rot_angs': env_core.MAP.rot_angs })
 
         np.save(open(os.path.join(args.log_dir,'path_%d.npy'%eval_num), 'wb'), target_paths)
         pickle.dump(init_pose, open(os.path.join(args.log_dir,'init_eval_%d.pkl'%eval_num), 'wb'))
-        if args.map == 'dynamic_map':
+        if 'dynamic_map' in args.map :
             pickle.dump(map_info, open(os.path.join(args.log_dir, 'map_info_%d.pkl'%eval_num), 'wb'))
 
 if __name__ == "__main__":
