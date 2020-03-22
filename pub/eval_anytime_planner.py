@@ -34,7 +34,7 @@ def evaluate():
 
     planner = InfoPlanner(n_controls=args.n_controls)
 
-    for eval_id in range(args.eval_id_max):
+    for eval_id in [9,10]:#range(args.eval_id_max):
         print("\nEvaluating for EVAL ID %d"%eval_id)
         env = ttenv.make(args.env,
                         render = bool(args.render),
@@ -64,7 +64,7 @@ def evaluate():
             given_init_pose = pickle.load(open(os.path.join(args.eval_param_dir,
                                             'init_eval_%d.pkl'%eval_id), "rb"))
             nb_test_episodes = len(given_init_pose)
-            if args.map == 'dynamic_map':
+            if ('dynamic_map' in args.map):
                 map_info = pickle.load(open(os.path.join(args.eval_param_dir,
                                             'map_info_%d.pkl'%eval_id), "rb"))
             if args.eval_type == 'fixed_path':
@@ -112,7 +112,7 @@ def evaluate():
             t_speed, a_speed = [], []
 
             # Reset
-            if args.map == 'dynamic_map' and (args.eval_type == 'fixed_init' or args.eval_type == 'fixed_path'):
+            if ('dynamic_map' in args.map) and (args.eval_type == 'fixed_init' or args.eval_type == 'fixed_path'):
                 for (k,v) in map_info[ep].items():
                     init_params[k] = v
 
