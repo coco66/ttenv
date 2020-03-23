@@ -50,7 +50,8 @@ class FeedTargetWrapper(TargetWrapper):
 
 class TargetTrackingInfoPlanner2(TargetTrackingEnv1):
     """
-    Double Integrator
+    Target tracking envrionment using InfoPlanner algorithm for the agent model.
+    Target and belief models use ttenv functions.    
     """
     def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True):
         TargetTrackingEnv1.__init__(self, num_targets=num_targets,
@@ -113,8 +114,6 @@ class TargetTrackingInfoPlanner2(TargetTrackingEnv1):
         # Compute the RL state.
         self.state_func([0.0, 0.0], observed)
 
-        # # Build beliefs
-        # self.belief_targets.update(self.agent.get_belief_state(), self.agent.get_belief_cov())
         return self.state
 
     def step(self, action):
@@ -150,21 +149,10 @@ class TargetTrackingInfoPlanner2(TargetTrackingEnv1):
     def observe_and_update_belief(self):
         observed = super().observe_and_update_belief()
 
-        # # Update the belief in the info agent.
-        # b_mean = [self.belief_targets[i].state for i in range(self.num_targets)]
-        # b_cov = [self.belief_targets[i].cov for i in range(self.num_targets)]
-        # self.agent.update_belief_state(b_mean, b_cov)
-        # m, cov = self.agent.get_belief_state(), self.agent.get_belief_cov()
-        # print(m, cov)
-        measurements = self.agent.observation(self.info_targets.target)
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        # Update the belief of the agent on the target using KF
-        GaussianBelief = infoplanner.IGL.MultiTargetFilter(measurements, self.agent.agent, debug=False)
-        self.agent.update_belief(GaussianBelief)
-        info_belief = [self.agent.get_belief_state(), self.agent.get_belief_cov()]
-        for i in range(self.num_targets):
-            self.belief_targets[i].state = info_belief[0][i*self.target_dim: (i+1)*self.target_dim]
-            self.belief_targets[i].cov = info_belief[1][i*self.target_dim: (i+1)*self.target_dim, i*self.target_dim: (i+1)*self.target_dim]
+        # Update the belief in the info agent.
+        b_mean = [self.belief_targets[i].state for i in range(self.num_targets)]
+        b_cov = [self.belief_targets[i].cov for i in range(self.num_targets)]
+        self.agent.update_belief_state(b_mean, b_cov)
         return observed
 
     def build_models(self, const_q=None, known_noise=True, **kwargs):
@@ -411,14 +399,10 @@ class Agent_InfoPlanner(Agent):
         if len(target_state.shape)==1:
             target_state = [target_state]
         target_col = False
-        # for n in range(target_state.shape[0]): # For each target
-        #     target_col = np.sqrt(np.sum((new_state[:2] - target_state[n][:2])**2)) < METADATA['margin']
-        #     if target_col:
-        #         break
-        is_col = False
-        if self.collision_check(new_state) or target_col: # no update
-            new_action = self.action_map_rev[(0.0, 0.0)]
-            is_col = True
-        else:
-            new_action = action
+        for n in range(target_state.shape[0]): # For each target
+            target_col = np.sqrt(np.sum((new_state[:2] - target_state[n][:2])**2)) < METADATA['margin']
+            if target_col:
+                break
+        is_col = self.collision_check(new_state)
+        new_action = action
         return new_action, is_col
