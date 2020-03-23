@@ -62,7 +62,7 @@ def main():
                 init_pose_k = {'agent':env_core.agent.state,
                                 'targets':[env_core.targets[i].state for i in range(args.nb_targets)],
                                 'belief_targets':[env_core.belief_targets[i].state for i in range(args.nb_targets)]}
-                target_path_t = [[]] * args.nb_targets
+                target_path_t = [[] for _ in range(args.nb_targets)]
                 while not done:
                     _, _, done, _ = env.step(env.action_space.sample())
                     if args.render:
