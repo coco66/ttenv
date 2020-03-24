@@ -210,10 +210,10 @@ METADATA_multi_v3={
         'sensor_b_sd': 0.01, # sensor bearing noise.
         'target_init_cov': 30.0, # initial target diagonal Covariance.
         'target_init_vel': [0.0, 0.0], # target's initial velocity.
-        'target_speed_limit': 1.0, # velocity limit of targets.
+        'target_speed_limit': 0.1, # velocity limit of targets.
         'lin_dist_range_a2b':(3.0, 30.0),
         'ang_dist_range_a2b':(-np.pi, np.pi),
-        'lin_dist_range_b2t':(0.0, 15.0),
+        'lin_dist_range_b2t':(0.0, 10.0),
         'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
         'margin': 1.0, # a marginal distance btw targets and the agent.
         'margin2wall': 0.5, # a marginal distance from a wall.
