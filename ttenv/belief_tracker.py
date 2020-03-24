@@ -59,7 +59,7 @@ class KFbelief(object):
         # Kalman Filter Update
         r_pred, alpha_pred = util.relative_distance_polar(
                         self.state[:2], x_t[:2], x_t[2])
-        diff_pred = self.state[:2] - x_t[:2]
+        diff_pred = np.array(self.state[:2]) - np.array(x_t[:2])
         if self.dim == 2:
             Hmat = np.array([[diff_pred[0],diff_pred[1]],
                         [-diff_pred[1]/r_pred, diff_pred[0]/r_pred]])/r_pred
