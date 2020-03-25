@@ -81,7 +81,7 @@ class TargetTrackingBase(gym.Env):
         observed = self.observe_and_update_belief()
 
         # Compute a reward from b_t+1|t+1 or b_t+1|t.
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
+        reward, done, mean_nlogdetcov, std_nlogdetcov = self.get_reward(self.is_training,
                                                                 is_col=is_col)
         # Predict the target for the next step, b_t+2|t+1
         for i in range(self.num_targets):
@@ -90,7 +90,7 @@ class TargetTrackingBase(gym.Env):
         # Compute the RL state.
         self.state_func(action_vw, observed)
 
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov, 'std_nlogdetcov': std_nlogdetcov}
 
     def get_init_pose(self, init_pose_list=[], target_path=[], **kwargs):
         """Generates initial positions for the agent, targets, and target beliefs.
@@ -301,8 +301,9 @@ def reward_fun_1(belief_targets, is_col, is_training=True, c_mean=0.1, c_std=0.0
     if is_col :
         reward = min(0.0, reward) - c_penalty * 1.0
 
-    mean_nlogdetcov = None
-    if not(is_training):
-        logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
-        mean_nlogdetcov = -np.mean(logdetcov)
-    return reward, False, mean_nlogdetcov
+    # mean_nlogdetcov = None
+    # if not(is_training):
+    #     logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
+    #     mean_nlogdetcov = -np.mean(logdetcov)
+    #     std_nlogdetcov =
+    return reward, False, r_detcov_mean, r_detcov_std
