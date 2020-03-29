@@ -135,7 +135,7 @@ class TargetTrackingInfoPlanner2(TargetTrackingEnv1):
         observed = self.observe_and_update_belief()
 
         # Compute a reward from b_t+1|t+1 or b_t+1|t.
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=False)
+        reward, done, mean_nlogdetcov, std_nlogdetcov = self.get_reward(self.is_training, is_col=False)
 
         # Predict the target for the next step, b_t+2|t+1
         for i in range(self.num_targets):
@@ -144,7 +144,7 @@ class TargetTrackingInfoPlanner2(TargetTrackingEnv1):
         # Compute the RL state.
         self.state_func(action_vw, observed)
 
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov, 'std_nlogdetcov': std_nlogdetcov}
 
     def observe_and_update_belief(self):
         observed = super().observe_and_update_belief()
