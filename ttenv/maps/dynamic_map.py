@@ -51,8 +51,12 @@ class DynamicMap(GridMap):
                                         - int(rotated_obs.shape[1]/2) \
                                         + self.submap_coordinates[i][1]
             self.map[rotated_obs_idx_global_0, rotated_obs_idx_global_1] = 1.0
+        self.map[0,:] = 1.0
+        self.map[-1,:] = 1.0
+        self.map[:,0] = 1.0
+        self.map[:,-1] = 1.0
         self.map_linear = np.squeeze(self.map.astype(np.int8).reshape(-1, 1))
-        
+
         # TEMP : Logging purpose.
         self.chosen_idx = chosen_idx
         self.rot_angs = rot_angs
