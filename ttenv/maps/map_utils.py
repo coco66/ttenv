@@ -174,7 +174,7 @@ class GridMap(object):
                 if i < ray_cells.shape[-1]: # break!
                     ro_min_t = np.sqrt(np.sum(np.square(pt - odom[:2])))
                     if ro_min_t < closest_obstacle[0]:
-                        closest_obstacle = (ro_min_t, ang)
+                        closest_obstacle = (ro_min_t, ang_grid[j])
             else:
                 while(i < ray_cells.shape[-1]): # break!
                     if self.is_collision_ray_cell(ray_cells[:,i]):
