@@ -10,6 +10,8 @@ from pub.test_util import *
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--seed', help='RNG seed', type=int, default=0)
 parser.add_argument('--n_controls', help='number of controls', type=int, default=5)
+parser.add_argument('--arvi_time', help='number of controls', type=float, default=0.5)
+parser.add_argument('--T_horizon', help='number of controls', type=int, default=12)
 parser.add_argument('--render', help='render', type=int, default=0)
 parser.add_argument('--record', help='record', type=int, default=0)
 parser.add_argument('--map', type=str, default="emptySmall")
@@ -32,10 +34,14 @@ def evaluate():
             ValueError("The directory already exists...", logdir)
     json.dump(vars(args), open(os.path.join(logdir, 'test_prop.json'), 'w'))
 
-    planner = InfoPlanner(n_controls=args.n_controls)
+    planner = InfoPlanner(n_controls=args.n_controls, T=args.T_horizon, arvi_time=args.arvi_time)
+    from ttenv.metadata import METADATA
+    from tabulate import tabulate
+    print(tabulate([(k,v) for (k,v) in METADATA.items()]))
+    input("Is this METADATA correct?")
 
-    for eval_id in [9,10]:#range(args.eval_id_max):
-        print("\nEvaluating for EVAL ID %d"%eval_id)
+    for eval_id in range(args.eval_id_max):
+        print("\n\nEvaluating for EVAL ID %d \n"%eval_id)
         env = ttenv.make(args.env,
                         render = bool(args.render),
                         record = bool(args.record),
@@ -89,7 +95,6 @@ def evaluate():
                 f_desc = "Eval type: %s from %s set %d \n"%(args.eval_type,
                                                         "TTENV_MULTI_TEST_SET", eval_id)
         else:
-            from ttenv.metadata import METADATA
             f_desc = "Eval type: %s from METADATA V%s"%(args.eval_type, str(METADATA['version']))
 
         log_data = {
@@ -101,10 +106,13 @@ def evaluate():
                     'resilience_rate': [],
                     'b_pos_a': [],
                     't_pos_a': [],
+                    'dist_btw_targets': [],
+                    'ep_nlogdetcov_std':[],
         }
         for ep in range(nb_test_episodes):
             # Recording
             total_rewards, total_nlogdetcov = 0, 0
+            nlogdetcov_std = []
             observed_history = []
             agent_state_history = []
             belief_state_history = []
@@ -127,8 +135,10 @@ def evaluate():
 
             s_time = time.time()
             while(not done):
+                skip_time = time.time()
                 if args.render:
                     env.render()
+                skip_time = time.time() - skip_time
 
                 # Record
                 observed_history.append([env_core.state[i*num_target_dep_vars+5]
@@ -147,8 +157,9 @@ def evaluate():
                 total_rewards += rew
                 # Prediction Measure.
                 total_nlogdetcov += - np.mean([env_core.state[i*num_target_dep_vars+4] for i in range(args.nb_targets)]) # info['mean_nlogdetcov']
+                nlogdetcov_std.append(info['std_nlogdetcov'])
 
-            log_data['time_elapsed'].append(time.time() - s_time)
+            log_data['time_elapsed'].append(time.time() - s_time - skip_time)
             log_data['ep_nlogdetcovs'].append((total_nlogdetcov-lb)/(ub-lb))
             log_data['ep_rewards'].append(total_rewards)
             log_data['num_col_attempts'].append(env_core.num_collisions)
@@ -158,16 +169,24 @@ def evaluate():
             log_data['visit_ratio'].append(n_visited_cells/n_available_cells)
 
             observed_history = np.array(observed_history)
+            belief_state_history = np.array(belief_state_history)
+            target_state_history = np.array(target_state_history)
+            agent_state_history = np.array(agent_state_history)
             log_data['resilience_rate'].append(np.mean(
                                         [resilience_rate(observed_history[:,i])
                                                 for i in range(args.nb_targets)]))
-            b_pos_a, t_pos_a = state_stat(np.array(agent_state_history),
-                                                np.array(belief_state_history),
-                                                np.array(target_state_history))
+            b_pos_a, t_pos_a = state_stat(agent_state_history,
+                                    belief_state_history, target_state_history)
             log_data['b_pos_a'].append(b_pos_a)
             log_data['t_pos_a'].append(t_pos_a)
 
+            if args.nb_targets == 2:
+                log_data['dist_btw_targets'].append(np.mean(np.sqrt(np.sum((target_state_history[:,0,:2] - target_state_history[:,1,:2])**2, axis=1))))
+                log_data['ep_nlogdetcov_std'].append(np.mean(nlogdetcov_std))
+
             print("Ep.%d - Episode reward : %.2f, Episode nLogDetCov : %.2f, Num Collision : %d"%(ep, total_rewards, total_nlogdetcov,env_core.num_collisions))
+            pickle.dump(log_data,
+                    open(os.path.join(logdir,'test_result_%d.pkl'%eval_id), 'wb'))
 
         f_b_states = plot_states(np.concatenate(log_data['b_pos_a']))
         f_t_states = plot_states(np.concatenate(log_data['t_pos_a']))
@@ -175,6 +194,7 @@ def evaluate():
         f_t_states.suptitle('Target Positions in the Agent Frame')
         f_b_states.savefig(os.path.join(logdir, "pos_stat_%d_b.png"%eval_id))
         f_t_states.savefig(os.path.join(logdir, "pos_stat_%d_t.png"%eval_id))
+        plt.close()
 
         if args.record :
             env.finish()
