@@ -77,7 +77,7 @@ class GridMap(object):
                 cell = np.minimum([self.mapdim[0]-1,self.mapdim[1]-1] , self.se2_to_cell(pos))
                 if margin is None:
                     margin = self.margin2wall
-                elif margin == 0.0:
+                if margin == 0.0:
                     return self.is_collision_ray_cell(cell)
                 n = np.ceil(margin/self.mapres).astype(np.int16)
                 for r_add in np.arange(-n[1],n[1],1):
@@ -155,15 +155,15 @@ class GridMap(object):
         """
         Return radial and angular distances of the closest obstacle/boundary cell
         """
+        odom = np.array(odom)
         ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
         closest_obstacle = (r_max, 0.0)
         start_rc = self.se2_to_cell(odom[:2])
-        for ang in ang_grid:
-            end_pt_global_frame = coord_change2g(np.array(
-                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
-                            odom[-1]) + odom[:2]
-            end_rc = self.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+        cs_ang_grid = r_max * np.array([np.cos(ang_grid), np.sin(ang_grid)])
+        end_pt_global_frame = coord_change2g(cs_ang_grid, odom[-1]) + odom[:2, np.newaxis]
+        end_rc = se2_to_cell_batch(end_pt_global_frame.T, self.mapmin, self.mapres)
+        for j in range(len(ang_grid)):
+            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0][j], end_rc[1][j])
             i = 0
             if self.map is None:
                 while(i < ray_cells.shape[-1]):
@@ -183,7 +183,7 @@ class GridMap(object):
                 if i < ray_cells.shape[-1]:
                     ro_min_t = np.sqrt(np.sum(np.square(self.cell_to_se2(ray_cells[:,i]) - odom[:2])))
                     if ro_min_t < closest_obstacle[0]:
-                        closest_obstacle = (ro_min_t, ang)
+                        closest_obstacle = (ro_min_t, ang_grid[j])
         if closest_obstacle[0] == r_max:
             return None
         else:
@@ -239,17 +239,18 @@ class GridMap(object):
         """
         Update the visit frequency map from the given odometry.
         """
-        self.decay_visit_freq_map(decay_factor)
+        odom = np.array(odom)
         ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
         closest_obstacle = (r_max, 0.0)
         start_rc = self.se2_to_cell(odom[:2])
+        cs_ang_grid = r_max * np.array([np.cos(ang_grid), np.sin(ang_grid)])
+        end_pt_global_frame = coord_change2g(cs_ang_grid, odom[-1]) + odom[:2, np.newaxis]
+        end_rc = se2_to_cell_batch(end_pt_global_frame.T, self.mapmin, self.mapres)
+
+        self.decay_visit_freq_map(decay_factor)
         visit_map_tmp = np.zeros(self.mapdim)
-        for ang in ang_grid:
-            end_pt_global_frame = coord_change2g(np.array(
-                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
-                            odom[-1]) + odom[:2]
-            end_rc = self.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
+        for j in range(len(ang_grid)):
+            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0][j], end_rc[1][j])
             i = 0
             while(i < ray_cells.shape[-1]): # break!
                 if self.is_collision_ray_cell(ray_cells[:,i]):
@@ -288,7 +289,6 @@ class GridMap(object):
                 self.visit_freq_map[ray_cells[0,:i+1], ray_cells[1,:i+1]] = 1.0
             if self.visit_map is not None and not(observed):
                 self.visit_map[ray_cells[0,:i+1], ray_cells[1,:i+1]] += 1.0
-
 
     def local_map_helper(self, im_size, odom, local_mapmin, R, get_visit_freq=False):
         """
@@ -453,7 +453,7 @@ def se2_to_cell_batch(pos, mapmin, mapres):
 
     OUTPUT: [batch_size,], [batch_size,]
     """
-    return round((pos[:,0] - mapmin[0])/mapres[0] - 0.5), round((pos[:,1] - mapmin[1])/mapres[1] - 0.5)
+    return np.round((pos[:,0] - mapmin[0])/mapres[0] - 0.5), np.round((pos[:,1] - mapmin[1])/mapres[1] - 0.5)
 
 def cell_to_se2_batch(cell_idx, mapmin, mapres):
     """

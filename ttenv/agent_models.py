@@ -180,7 +180,7 @@ class AgentSE2(Agent):
             if self.margin_check(new_state[:2], margin_pos):
                 new_state[:2] = self.state[:2]
                 control_input = self.vw
-                break
+                
         self.state = new_state
         self.vw = control_input
         self.range_check()
