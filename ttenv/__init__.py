@@ -1,5 +1,5 @@
 from gym import wrappers
-from ttenv import target_tracking, target_imtracking, target_seq_tracking
+from ttenv import target_tracking, target_imtracking
 
 def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
                                         T_steps=None, num_targets=1, **kwargs):
@@ -59,20 +59,6 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v10':
         local_view = 1
         env0 = target_imtracking.TargetTrackingEnv10(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v1_SEQ':
-        env0 = target_seq_tracking.TargetTrackingEnv1_SEQ(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v5_SEQ':
-        local_view = 1
-        env0 = target_seq_tracking.TargetTrackingEnv5_SEQ(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v7_SEQ':
-        local_view = 5
-        env0 = target_seq_tracking.TargetTrackingEnv7_SEQ(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v8_SEQ':
-        local_view = 5
-        env0 = target_seq_tracking.TargetTrackingEnv8_SEQ(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v9_SEQ':
-        local_view = 5
-        env0 = target_seq_tracking.TargetTrackingEnv9_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
