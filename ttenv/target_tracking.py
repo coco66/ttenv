@@ -22,17 +22,12 @@ TargetTrackingEnv1 : Double Integrator Target model with KF belief tracker
     Target : Nonlinear Double Integrator model, [x,y,xdot,ydot]
     Belief Target : KF, Double Integrator model
 
-TargetTrackingEnv2 : Double Integrator Target model with KF belief tracker (belief block boolean var)
-    RL state: [d, alpha, ddot, alphadot, logdet(Sigma), observed, belief_blocked] * nb_targets, [o_d, o_alpha]
-    Target : Nonlinear Double Integrator model, [x,y,xdot,ydot]
-    Belief Target : KF, Double Integrator model
-
-TargetTrackingEnv3 : SE2 Target model with UKF belief tracker
+TargetTrackingEnv2 : SE2 Target model with UKF belief tracker
     RL state: [d, alpha, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]
     Target : SE2 model [x,y,theta] + a control policy u=[v,w]
     Belief Target : UKF for SE2 model [x,y,theta]
 
-TargetTrackingEnv4 : SE2 Target model with UKF belief tracker [x,y,theta,v,w]
+TargetTrackingEnv3 : SE2 Target model with UKF belief tracker [x,y,theta,v,w]
     RL state: [d, alpha, ddot, alphadot, logdet(Sigma), observed] * nb_targets, [o_d, o_alpha]
     Target : SE2 model [x,y,theta] + a control policy u=[v,w]
     Belief Target : UKF for SE2Vel model [x,y,theta,v,w]
@@ -277,42 +272,88 @@ class TargetTrackingEnv1(TargetTrackingBase):
                             collision_func=lambda x: self.MAP.is_collision(x))
                             for _ in range(self.num_targets)]
 
-class TargetTrackingEnv2(TargetTrackingEnv1):
-    def __init__(self, num_targets=1, map_name='empty', is_training=True,
-                known_noise=True, **kwargs):
-        TargetTrackingEnv1.__init__(self, num_targets=num_targets,
+class TargetTrackingEnv2(TargetTrackingEnv0):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
+        TargetTrackingEnv0.__init__(self, num_targets=num_targets,
             map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
         self.id = 'TargetTracking-v2'
+        self.target_dim = 3
 
-    def state_func(self, action_vw, observed):
-        # Find the closest obstacle coordinate.
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
+        # Set limits.
+        self.set_limits()
 
-        self.state = []
-        for i in range(self.num_targets):
-            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            r_dot_b, alpha_dot_b = util.relative_velocity_polar(
-                                    self.belief_targets[i].state[:2],
-                                    self.belief_targets[i].state[2:],
-                                    self.agent.state[:2], self.agent.state[2],
-                                    action_vw[0], action_vw[1])
-            is_belief_blocked = self.MAP.is_blocked(self.agent.state[:2], self.belief_targets[i].state[:2])
-            self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
-                                np.log(LA.det(self.belief_targets[i].cov)),
-                                float(observed[i]), float(is_belief_blocked)])
-        self.state.extend([obstacles_pt[0], obstacles_pt[1]])
-        self.state = np.array(self.state)
-
-        # Update the visit map for the evaluation purpose.
-        if self.MAP.visit_map is not None:
-            self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))
+        # Build an agent, targets, and beliefs.
+        self.build_models(const_q=METADATA['const_q'], known_noise=known_noise)
 
     def set_limits(self, target_speed_limit=None):
-        self.num_target_dep_vars = 7
+        self.num_target_dep_vars = 4
+        self.num_target_indep_vars = 2
+
+        if target_speed_limit is None:
+            self.target_speed_limit = np.random.choice([1.0, 3.0])
+        else:
+            self.target_speed_limit = target_speed_limit
+
+        # LIMIT
+        self.limit = {} # 0: low, 1:highs
+        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['target'] = [np.concatenate((self.MAP.mapmin, [-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi ])),
+                               np.concatenate(([600.0, np.pi, 50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
+        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
+
+    def build_models(self, const_q=None, known_noise=True, **kwargs):
+        if const_q is None:
+            self.const_q = np.random.choice([0.001, 0.1, 1.0])
+        else:
+            self.const_q = const_q
+
+        # Build a robot
+        self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
+                            lambda x: self.MAP.is_collision(x))
+        # Build a target
+        self.targets = [AgentSE2(self.target_dim, self.sampling_period,
+                        self.limit['target'],
+                        lambda x: self.MAP.is_collision(x),
+                        policy=SinePolicy(0.1, 0.5, 5.0, self.sampling_period))
+                        for _ in range(self.num_targets)]
+
+        self.target_noise_cov = self.const_q * self.sampling_period * np.eye(self.target_dim)
+        if known_noise:
+            self.target_true_noise_sd = self.target_noise_cov
+        else:
+            self.target_true_noise_sd = self.const_q_true * \
+                                self.sampling_period * np.eye(self.target_dim)
+        # SinePolicy(0.5, 0.5, 2.0, self.sampling_period)
+        # CirclePolicy(self.sampling_period, self.MAP.origin, 3.0)
+        # RandomPolicy()
+
+        self.belief_targets = [UKFbelief(dim=self.target_dim,
+                            limit=self.limit['target'], fx=SE2Dynamics,
+                            W=self.target_noise_cov,
+                            obs_noise_func=self.observation_noise,
+                            collision_func=lambda x: self.MAP.is_collision(x))
+                            for _ in range(self.num_targets)]
+
+class TargetTrackingEnv3(TargetTrackingBase):
+    def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
+        TargetTrackingEnv0.__init__(self, num_targets=num_targets,
+            map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
+        self.id = 'TargetTracking-v3'
+        self.target_dim = 5
+        self.target_init_vel = np.array(METADATA['target_init_vel'])
+
+        # Set limits.
+        self.set_limits()
+
+        # Build an agent, targets, and beliefs.
+        self.build_models(const_q=METADATA['const_q'], known_noise=known_noise)
+
+    def set_limits(self, target_speed_limit=None):
+        if self.target_dim != 5:
+            return
+        self.num_target_dep_vars = 6
         self.num_target_indep_vars = 2
 
         if target_speed_limit is None:
@@ -321,101 +362,25 @@ class TargetTrackingEnv2(TargetTrackingEnv1):
             self.target_speed_limit = target_speed_limit
         rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
 
-        self.limit = {} # 0: low, 1:highs
-        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['target'] = [np.concatenate((self.MAP.mapmin,[-self.target_speed_limit, -self.target_speed_limit])),
-                                np.concatenate((self.MAP.mapmax, [self.target_speed_limit, self.target_speed_limit]))]
-        rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0, 0.0]*self.num_targets, [0.0, -np.pi])),
-                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi,  50.0, 2.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
-        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
-        assert(len(self.limit['state'][0]) == (self.num_target_dep_vars * self.num_targets + self.num_target_indep_vars))
-
-class TargetTrackingEnv3(TargetTrackingEnv0):
-    def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
-        TargetTrackingEnv0.__init__(self, num_targets=num_targets,
-            map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
-        self.id = 'TargetTracking-v3'
-        self.target_dim = 3
-
-        # LIMIT
-        self.limit = {} # 0: low, 1:highs
-        self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['target'] = [np.concatenate((self.MAP.mapmin, [-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi ])),
-                               np.concatenate(([600.0, np.pi, 50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
-        self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
-        self.target_noise_cov = self.const_q * self.sampling_period * np.eye(self.target_dim)
-        if known_noise:
-            self.target_true_noise_sd = self.target_noise_cov
-        else:
-            self.target_true_noise_sd = self.const_q_true * \
-                                self.sampling_period * np.eye(self.target_dim)
-        # Build a robot
-        self.agent = AgentSE2(3, self.sampling_period, self.limit['agent'],
-                            lambda x: self.MAP.is_collision(x))
-        # Build a target
-        self.targets = [AgentSE2(self.target_dim, self.sampling_period, self.limit['target'],
-                            lambda x: self.MAP.is_collision(x),
-                            policy=SinePolicy(0.1, 0.5, 5.0, self.sampling_period)) for _ in range(num_targets)]
-        # SinePolicy(0.5, 0.5, 2.0, self.sampling_period)
-        # CirclePolicy(self.sampling_period, self.MAP.origin, 3.0)
-        # RandomPolicy()
-
-        self.belief_targets = [UKFbelief(dim=self.target_dim, limit=self.limit['target'], fx=SE2Dynamics,
-                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
-                            collision_func=lambda x: self.MAP.is_collision(x))
-                            for _ in range(num_targets)]
-
-    def step(self, action):
-        # TODO : KF predict/update steps should be corrected.
-        # TODO : Integrate with the base step function.
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        observed = []
-        for i in range(self.num_targets):
-            self.targets[i].update()
-
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            # Update the belief of the agent on the target using UKF
-            self.belief_targets[i].update(obs[0], obs[1], self.agent.state,
-                                        np.array([np.random.random(),
-                                        np.pi*np.random.random()-0.5*np.pi]))
-
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
-        self.state = []
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
-        for i in range(self.num_targets):
-            r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            self.state.extend([r_b, alpha_b,
-                                np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
-        self.state.extend([obstacles_pt[0], obstacles_pt[1]])
-        self.state = np.array(self.state)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
-
-class TargetTrackingEnv4(TargetTrackingEnv0):
-    def __init__(self, num_targets=1, map_name='empty', is_training=True, known_noise=True, **kwargs):
-        TargetTrackingEnv0.__init__(self, num_targets=num_targets,
-            map_name=map_name, is_training=is_training, known_noise=known_noise, **kwargs)
-        self.id = 'TargetTracking-v4'
-        self.target_dim = 5
-        self.target_init_vel = np.array(METADATA['target_init_vel'])
-
         # LIMIT
         self.limit = {} # 0: low, 1:highs
         rel_speed_limit = self.target_speed_limit + METADATA['action_v'][0] # Maximum relative speed
         self.limit['agent'] = [np.concatenate((self.MAP.mapmin,[-np.pi])), np.concatenate((self.MAP.mapmax, [np.pi]))]
         self.limit['target'] = [np.concatenate((self.MAP.mapmin, [-np.pi, -self.target_speed_limit, -np.pi])),
                                             np.concatenate((self.MAP.mapmax, [np.pi, self.target_speed_limit, np.pi]))]
-        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*num_targets, [0.0, -np.pi ])),
-                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi, 50.0, 2.0]*num_targets, [self.sensor_r, np.pi]))]
+        self.limit['state'] = [np.concatenate(([0.0, -np.pi, -rel_speed_limit, -10*np.pi, -50.0, 0.0]*self.num_targets, [0.0, -np.pi ])),
+                               np.concatenate(([600.0, np.pi, rel_speed_limit, 10*np.pi, 50.0, 2.0]*self.num_targets, [self.sensor_r, np.pi]))]
         self.observation_space = spaces.Box(self.limit['state'][0], self.limit['state'][1], dtype=np.float32)
+
+    def build_models(self, const_q=None, known_noise=True, **kwargs):
+        if self.target_dim != 5:
+            return
+
+        if const_q is None:
+            self.const_q = np.random.choice([0.001, 0.1, 1.0])
+        else:
+            self.const_q = const_q
+
         self.target_noise_cov = np.zeros((self.target_dim, self.target_dim))
         for i in range(3):
             self.target_noise_cov[i,i] = self.const_q * self.sampling_period**3/3
@@ -432,21 +397,30 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                             lambda x: self.MAP.is_collision(x))
         # Build a target
         self.targets = [AgentSE2(self.target_dim, self.sampling_period, self.limit['target'],
-                            lambda x: self.MAP.is_collision(x),
-                            policy=ConstantPolicy(self.target_noise_cov[3:, 3:])) for _ in range(num_targets)]
+                        lambda x: self.MAP.is_collision(x),
+                        policy=ConstantPolicy(self.target_noise_cov[3:, 3:]))
+                        for _ in range(self.num_targets)]
         # SinePolicy(0.5, 0.5, 2.0, self.sampling_period)
         # CirclePolicy(self.sampling_period, self.MAP.origin, 3.0)
         # RandomPolicy()
 
-        self.belief_targets = [UKFbelief(dim=self.target_dim, limit=self.limit['target'], fx=SE2DynamicsVel,
-                            W=self.target_noise_cov, obs_noise_func=self.observation_noise,
+        self.belief_targets = [UKFbelief(dim=self.target_dim,
+                            limit=self.limit['target'], fx=SE2DynamicsVel,
+                            W=self.target_noise_cov,
+                            obs_noise_func=self.observation_noise,
                             collision_func=lambda x: self.MAP.is_collision(x))
-                            for _ in range(num_targets)]
+                            for _ in range(self.num_targets)]
 
     def reset(self, **kwargs):
-        # TODO : KF predict/update steps should be corrected.
-        self.state = []
-        init_pose = self.get_init_pose(**kwargs)
+        # Always set the limits first.
+        if 'target_speed_limit' in kwargs:
+            self.set_limits(target_speed_limit=kwargs['target_speed_limit'])
+
+        if 'const_q' in kwargs:
+            self.build_models(const_q=kwargs['const_q'])
+
+        # Reset the agent, targets, and beliefs with sampled initial positions.
+        init_pose = super().reset(**kwargs)
         self.agent.reset(init_pose['agent'])
         for i in range(self.num_targets):
             self.belief_targets[i].reset(
@@ -455,35 +429,25 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
             t_init = np.concatenate((init_pose['targets'][i], [self.target_init_vel[0], 0.0]))
             self.targets[i].reset(t_init)
             self.targets[i].policy.reset(t_init)
-            r, alpha = util.relative_distance_polar(self.belief_targets[i].state[:2],
-                                                xy_base=self.agent.state[:2],
-                                                theta_base=self.agent.state[2])
-            logdetcov = np.log(LA.det(self.belief_targets[i].cov))
-            self.state.extend([r, alpha, 0.0, 0.0, logdetcov, 0.0])
-        self.state.extend([self.sensor_r, np.pi])
-        self.state = np.array(self.state)
+
+        # The targets are observed by the agent (z_0) and the beliefs are updated (b_0).
+        observed = self.observe_and_update_belief()
+
+        # Predict the target for the next step, b_1|0.
+        for i in range(self.num_targets):
+            self.belief_targets[i].predict()
+
+        # Compute the RL state.
+        self.state_func([0.0, 0.0], observed)
         return self.state
 
-    def step(self, action):
-        # TODO : KF predict/update steps should be corrected.
-        # TODO : Integrate with the base step function.
-        action_vw = self.action_map[action]
-        is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
+    def state_func(self, action_vw, observed):
+        # Find the closest obstacle coordinate.
         obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        observed = []
-        for i in range(self.num_targets):
-            self.targets[i].update()
-            # Observe
-            obs = self.observation(self.targets[i])
-            observed.append(obs[0])
-            # Update the belief of the agent on the target using UKF
-            self.belief_targets[i].update(obs[0], obs[1], self.agent.state,
-             np.array([np.random.random(), np.pi*np.random.random()-0.5*np.pi]))
-
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training, is_col=is_col)
-        self.state = []
         if obstacles_pt is None:
             obstacles_pt = (self.sensor_r, np.pi)
+
+        self.state = []
         for i in range(self.num_targets):
             r_b, alpha_b = util.relative_distance_polar(self.belief_targets[i].state[:2],
                                                 xy_base=self.agent.state[:2],
@@ -496,4 +460,6 @@ class TargetTrackingEnv4(TargetTrackingEnv0):
                                     np.log(LA.det(self.belief_targets[i].cov)), float(observed[i])])
         self.state.extend([obstacles_pt[0], obstacles_pt[1]])
         self.state = np.array(self.state)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
+        # Update the visit map when there is any target not observed for the evaluation purpose.
+        if self.MAP.visit_map is not None:
+            self.MAP.update_visit_freq_map(self.agent.state, 1.0, observed=bool(np.mean(observed)))

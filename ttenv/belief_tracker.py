@@ -167,11 +167,11 @@ class UKFbelief(object):
             return r_z
 
         sigmas = JulierSigmaPoints(n=dim, kappa=kappa)
-
         self.ukf = UnscentedKalmanFilter(dim, dim_z, sampling_period, fx=fx,
                     hx=hx, points=sigmas, x_mean_fn=x_mean_fn_,
                     z_mean_fn=z_mean_fn_, residual_x=residual_x_,
                     residual_z=residual_z_)
+
 
     def reset(self, init_state, init_cov):
         self.state = init_state
@@ -180,19 +180,21 @@ class UKFbelief(object):
         self.ukf.P = self.cov
         self.ukf.Q = self.W # process noise matrix
 
-    def update(self, observed, z_t, x_t, u_t=None):
+    def predict(self, u_t=None):
+        if u_t is None:
+            u_t = np.array([np.random.random(),
+                np.pi*np.random.random()-0.5*np.pi])
+
         # Kalman Filter Update
         self.ukf.predict(u=u_t)
+        self.cov = self.ukf.P
+        self.state = np.clip(self.ukf.x, self.limit[0], self.limit[1])
 
-        if observed:
-            r_pred, alpha_pred = util.relative_distance_polar(self.ukf.x[:2], x_t[:2], x_t[2])
-            self.ukf.update(z_t, R=self.obs_noise_func((r_pred, alpha_pred)),
-                                agent_state=x_t)
+    def update(self, z_t, x_t):
+        # Kalman Filter Update
+        r_pred, alpha_pred = util.relative_distance_polar(self.ukf.x[:2], x_t[:2], x_t[2])
+        self.ukf.update(z_t, R=self.obs_noise_func((r_pred, alpha_pred)),
+                            agent_state=x_t)
 
-        cov_new = self.ukf.P
-        state_new = self.ukf.x
-
-        if LA.det(cov_new) < 1e6:
-            self.cov = cov_new
-        if not(self.collision_func(state_new[:2])):
-            self.state = np.clip(state_new, self.limit[0], self.limit[1])
+        self.cov = self.ukf.P
+        self.state = np.clip(self.ukf.x, self.limit[0], self.limit[1])
