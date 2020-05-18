@@ -17,17 +17,14 @@ class Display2D(Wrapper):
         self.figID = figID # figID = 0 : train, figID = 1 : test
         self.env_core = env.env
         self.bin = self.env_core.MAP.mapres
-        if self.env_core.MAP.map is None:
-            self.map = np.zeros(self.env_core.MAP.mapdim)
-        else:
-            self.map = self.env_core.MAP.map
         self.mapmin = self.env_core.MAP.mapmin
         self.mapmax = self.env_core.MAP.mapmax
         self.mapres = self.env_core.MAP.mapres
         self.fig = plt.figure(self.figID)
         self.local_view = local_view
         if local_view:
-            self.fig0 = [plt.figure(self.figID+1+i) for i in range(local_view)]
+            self.fig0 = plt.figure(self.figID+1)
+            self.local_idx_map = [(1,1),(1,0),(1,2),(0,1),(2,1)]
         self.n_frames = 0
         self.skip = skip
         self.c_cf = np.sqrt(-2*np.log(1-confidence))
@@ -35,6 +32,19 @@ class Display2D(Wrapper):
 
     def close(self):
         plt.close(self.fig)
+
+    def step(self, action):
+        if type(self.env_core.targets) == list:
+            target_true_pos = [self.env_core.targets[i].state[:2] for i in range(self.env_core.num_targets)]
+        else:
+            target_true_pos = self.env_core.targets.state[:,:2]
+
+        self.traj[0].append(self.env_core.agent.state[0])
+        self.traj[1].append(self.env_core.agent.state[1])
+        for i in range(self.env_core.num_targets):
+            self.traj_y[i][0].append(target_true_pos[i][0])
+            self.traj_y[i][1].append(target_true_pos[i][1])
+        return self.env.step(action)
 
     def render(self, record=False, batch_outputs=None):
         state = self.env_core.agent.state
@@ -52,14 +62,28 @@ class Display2D(Wrapper):
             self.fig.clf()
             ax = self.fig.subplots()
             im = None
-
             if self.local_view:
-                [f0.clf() for f0 in self.fig0]
-                ax0 = [f0.subplots() for f0 in self.fig0]
-            # To use the visit frequency map as a background, replace self.mp
-            # with 2 * self.map + self.env_core.MAP.visit_freq_map.T
-            im = ax.imshow(self.map, cmap='gray_r', origin='lower',
-                                        extent=[self.mapmin[0], self.mapmax[0],
+                self.fig0.clf()
+                if self.local_view == 1:
+                    ax0 = self.fig0.subplots()
+                elif self.local_view == 5:
+                    ax0 = self.fig0.subplots(3,3)
+                    [[ax0[r][c].set_aspect('equal','box') for r in range(3)] for c in range(3)]
+                else:
+                    raise ValueError('Invalid number of local_view.')
+
+            if self.env_core.MAP.visit_freq_map is not None:
+                background_map = self.env_core.MAP.visit_freq_map.T
+                if self.env_core.MAP.map is not None:
+                    background_map += 2 * self.env_core.MAP.map
+            else:
+                if self.env_core.MAP.map is not None:
+                    background_map = 2 * self.env_core.MAP.map
+                else:
+                    background_map = np.zeros(self.env_core.MAP.mapdim)
+
+            im = ax.imshow(background_map, cmap='gray_r', origin='lower',
+                        vmin=0, vmax=2, extent=[self.mapmin[0], self.mapmax[0],
                                                 self.mapmin[1], self.mapmax[1]])
 
             ax.plot(state[0], state[1], marker=(3, 0, state[2]/np.pi*180-90),
@@ -120,29 +144,33 @@ class Display2D(Wrapper):
             ax.plot([state[0], state[0]+METADATA['sensor_r']*np.cos(state[2]-0.5*METADATA['fov']/180.0*np.pi)],
                 [state[1], state[1]+METADATA['sensor_r']*np.sin(state[2]-0.5*METADATA['fov']/180.0*np.pi)],'k', linewidth=0.5)
 
+            ax.text(self.mapmax[0]+1., self.mapmax[1]-5., 'v_target:%.2f'%np.sqrt(np.sum(self.env_core.targets[0].state[2:]**2)))
+            ax.text(self.mapmax[0]+1., self.mapmax[1]-10., 'v_agent:%.2f'%self.env_core.agent.vw[0])
             ax.set_xlim((self.mapmin[0], self.mapmax[0]))
             ax.set_ylim((self.mapmin[1], self.mapmax[1]))
             ax.set_title("Trajectory %d"%self.traj_num)
             ax.set_aspect('equal','box')
             ax.grid()
 
-            if self.local_view:
+            if self.local_view==1:
                 local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
-                [ax0[j].imshow(
+                ax0.imshow(
+                        np.reshape(self.env_core.local_map[0], (im_size,im_size)),
+                        cmap='gray_r', origin='lower', vmin=-1, vmax=1,
+                        extent=[local_mapmin[0], -local_mapmin[0],
+                            0.0, -local_mapmin[0]*2])
+            elif self.local_view==5:
+                local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
+                [ax0[self.local_idx_map[j][0]][self.local_idx_map[j][1]].imshow(
                         np.reshape(self.env_core.local_map[j], (im_size,im_size)),
-                        cmap='gray_r', origin='lower',
+                        cmap='gray_r', origin='lower', vmin=-1, vmax=1,
                         extent=[local_mapmin[0], -local_mapmin[0],
                             0.0, -local_mapmin[0]*2]) for j in range(self.local_view)]
             if not record :
                 plt.draw()
-                plt.pause(0.0005)
+                plt.pause(0.0001)
 
         self.n_frames += 1
-        self.traj[0].append(state[0])
-        self.traj[1].append(state[1])
-        for i in range(num_targets):
-            self.traj_y[i][0].append(target_true_pos[i][0])
-            self.traj_y[i][1].append(target_true_pos[i][1])
 
     def reset(self, **kwargs):
         self.traj_num += 1
@@ -156,15 +184,14 @@ class Video2D(Wrapper):
         self.local_view = local_view
         self.skip = skip
         self.moviewriter = animation.FFMpegWriter()
-        fnum = np.random.randint(0,99)
+        fnum = np.random.randint(0,1000)
         fname = os.path.join(dirname, 'train_%d.mp4'%fnum)
         self.moviewriter.setup(fig=env.fig, outfile=fname, dpi=dpi)
         if self.local_view:
-            self.moviewriter0 = []
-            for j in range(self.local_view):
-                self.moviewriter0.append(animation.FFMpegWriter())
-                fname0 = os.path.join(dirname, 'train_%d_local_%d.mp4'%(fnum, j))
-                self.moviewriter0[j].setup(fig=env.fig0[j], outfile=fname0, dpi=dpi)
+            self.moviewriter0 = animation.FFMpegWriter()
+            self.moviewriter0.setup(fig=env.fig0,
+                outfile=os.path.join(dirname, 'train_%d_local.mp4'%fnum),
+                dpi=dpi)
         self.n_frames = 0
 
     def render(self, *args, **kwargs):
@@ -173,7 +200,7 @@ class Video2D(Wrapper):
             self.env.render(record=True, *args, **kwargs)
         self.moviewriter.grab_frame()
         if self.local_view:
-            [mv.grab_frame() for mv in self.moviewriter0]
+            self.moviewriter0.grab_frame()
         self.n_frames += 1
 
     def reset(self, **kwargs):
@@ -182,4 +209,4 @@ class Video2D(Wrapper):
     def finish(self):
         self.moviewriter.finish()
         if self.local_view:
-            [m.finish() for m in self.moviewriter0]
+            self.moviewriter0.finish()

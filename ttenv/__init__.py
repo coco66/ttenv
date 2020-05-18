@@ -4,17 +4,32 @@ from ttenv import target_tracking, target_imtracking, target_seq_tracking
 def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
                                         T_steps=None, num_targets=1, **kwargs):
     """
+    Parameters:
+    ----------
     env_name : str
-        name of an environment. (e.g. 'Cartpole-v0')
-    type : str
-        type of an environment. One of ['atari', 'classic_control',
-        'classic_mdp','target_tracking']
+        name of an environment. (e.g. 'TargetTracking-v0')
+    render : bool
+        wether to render.
+    figID : int
+        figure ID for rendering and/or recording.
+    record : bool
+        whether to record a video.
+    ros : bool
+        whether to use ROS.
+    directory :str
+        a path to store a video file if record is True.
+    T_steps : int
+        the number of steps per episode.
+    num_targets : int
+        the number of targets
     """
-    if T_steps is None:
-        if num_targets > 1:
-            T_steps = 150
-        else:
-            T_steps = 100
+    # if T_steps is None:
+    #     if num_targets > 1:
+    #         T_steps = 150
+    #     else:
+    #         T_steps = 100
+    T_steps = 100
+
     local_view = 0
     if env_name == 'TargetTracking-v0':
         env0 = target_tracking.TargetTrackingEnv0(num_targets=num_targets, **kwargs)
@@ -38,17 +53,32 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v8':
         local_view = 5
         env0 = target_imtracking.TargetTrackingEnv8(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-v9':
+        local_view = 5
+        env0 = target_imtracking.TargetTrackingEnv9(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-v10':
+        local_view = 1
+        env0 = target_imtracking.TargetTrackingEnv10(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v1_SEQ':
         env0 = target_seq_tracking.TargetTrackingEnv1_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5_SEQ':
         local_view = 1
         env0 = target_seq_tracking.TargetTrackingEnv5_SEQ(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-v7_SEQ':
+        local_view = 5
+        env0 = target_seq_tracking.TargetTrackingEnv7_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v8_SEQ':
         local_view = 5
         env0 = target_seq_tracking.TargetTrackingEnv8_SEQ(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-v9_SEQ':
+        local_view = 5
+        env0 = target_seq_tracking.TargetTrackingEnv9_SEQ(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
+    elif env_name == 'TargetTracking-info2':
+        from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner2
+        env0 = TargetTrackingInfoPlanner2(num_targets=num_targets, **kwargs)
     else:
         raise ValueError('No such environment exists.')
 

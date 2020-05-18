@@ -2,9 +2,9 @@
 mapmin: [0, 0]
 mapmax: [101, 101]
 mapres: [.5, .5]
-mapdim: [101, 101]
+mapdim: [202, 202]
 origin: [50.5, 50.5]
-origincells: [50, 50]
+origincells: [101, 101]
 datatype: c
 storage: colmajor
-mappath: emptyMap.cfg
+mappath: empty.cfg

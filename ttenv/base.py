@@ -1,13 +1,22 @@
+"""
+Target Tracking Environment Base Model.
+"""
 import gym
 from gym import spaces, logger
+from gym.utils import seeding
 
 import numpy as np
 from numpy import linalg as LA
-import os
+import os, copy
 
 from ttenv.maps import map_utils
+from ttenv.agent_models import *
+from ttenv.policies import *
+from ttenv.belief_tracker import KFbelief, UKFbelief
 from ttenv.metadata import METADATA
 import ttenv.util as util
+
+from ttenv.maps.dynamic_map import DynamicMap
 
 class TargetTrackingBase(gym.Env):
     def __init__(self, num_targets=1, map_name='empty',
@@ -23,39 +32,39 @@ class TargetTrackingBase(gym.Env):
                 self.action_map[len(METADATA['action_w'])*i+j] = (v,w)
         assert(len(self.action_map.keys())==self.action_space.n)
 
-        # Robot
+        self.num_targets = num_targets
+        self.viewer = None
+        self.is_training = is_training
+
         self.sampling_period = 0.5 # sec
         self.sensor_r_sd = METADATA['sensor_r_sd']
         self.sensor_b_sd = METADATA['sensor_b_sd']
         self.sensor_r = METADATA['sensor_r']
         self.fov = METADATA['fov']
+
         map_dir_path = '/'.join(map_utils.__file__.split('/')[:-1])
-        self.MAP = map_utils.GridMap(
-            map_path=os.path.join(map_dir_path, map_name),
-            margin2wall = METADATA['margin2wall'])
+        if 'dynamic_map' in map_name :
+            self.MAP = DynamicMap(
+                map_dir_path = map_dir_path,
+                map_name = map_name,
+                margin2wall = METADATA['margin2wall'])
+        else:
+            self.MAP = map_utils.GridMap(
+                map_path=os.path.join(map_dir_path, map_name),
+                margin2wall = METADATA['margin2wall'])
 
-        # Targets
-        self.num_targets = num_targets
-        self.viewer = None
-        self.is_training = is_training
-        self.target_init_vel = np.array(METADATA['target_init_vel'])
-        self.target_speed_limit = METADATA['target_speed_limit']
-        self.const_q = METADATA['const_q']
-        self.const_q_true = METADATA['const_q_true']
-
-        # initialization
         self.agent_init_pos =  np.array([self.MAP.origin[0], self.MAP.origin[1], 0.0])
         self.target_init_pos = np.array(self.MAP.origin)
         self.target_init_cov = METADATA['target_init_cov']
+
         self.reset_num = 0
 
     def reset(self, **kwargs):
+        self.MAP.generate_map(**kwargs)
         self.has_discovered = [0] * self.num_targets
         self.state = []
         self.num_collisions = 0
-        init_pose = self.get_init_pose(**kwargs)
-        self.reset_num += 1
-        return init_pose
+        return self.get_init_pose(**kwargs)
 
     def step(self, action):
         # The agent performs an action (t -> t+1)
@@ -63,34 +72,25 @@ class TargetTrackingBase(gym.Env):
         is_col = self.agent.update(action_vw, [t.state[:2] for t in self.targets])
         self.num_collisions += int(is_col)
 
-        # The targets move (t -> t+1) and are observed by the agent.
-        observed = self.update_target_and_belief()
-        reward, done, mean_nlogdetcov = self.get_reward(self.is_training,
-                                                                is_col=is_col)
-        obstacles_pt = self.MAP.get_closest_obstacle(self.agent.state)
-        if obstacles_pt is None:
-            obstacles_pt = (self.sensor_r, np.pi)
-
-        self.update_state(observed, obstacles_pt, action_vw)
-        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov}
-
-    def update_target_and_belief(self):
-        observed = []
+        # The targets move (t -> t+1)
         for i in range(self.num_targets):
-            # Update a target
             if self.has_discovered[i]:
                 self.targets[i].update(self.agent.state[:2])
-            # Observe
-            observation = self.observation(self.targets[i])
-            observed.append(observation[0])
-            # If observed, update a belief.
-            if observation[0]:
-                self.belief_targets[i].update(observation[1], self.agent.state)
-                if not(self.has_discovered[i]):
-                    self.has_discovered[i] = 1
-            # Predict the target for the next step.
+
+        # The targets are observed by the agent (z_t+1) and the beliefs are updated.
+        observed = self.observe_and_update_belief()
+
+        # Compute a reward from b_t+1|t+1 or b_t+1|t.
+        reward, done, mean_nlogdetcov, std_nlogdetcov = self.get_reward(self.is_training,
+                                                                is_col=is_col)
+        # Predict the target for the next step, b_t+2|t+1
+        for i in range(self.num_targets):
             self.belief_targets[i].predict()
-        return observed
+
+        # Compute the RL state.
+        self.state_func(action_vw, observed)
+
+        return self.state, reward, done, {'mean_nlogdetcov': mean_nlogdetcov, 'std_nlogdetcov': std_nlogdetcov}
 
     def get_init_pose(self, init_pose_list=[], target_path=[], **kwargs):
         """Generates initial positions for the agent, targets, and target beliefs.
@@ -110,9 +110,34 @@ class TargetTrackingBase(gym.Env):
         if init_pose_list != []:
             if target_path != []:
                 self.set_target_path(target_path[self.reset_num])
-            return init_pose_list[self.reset_num]
+            self.reset_num += 1
+            return init_pose_list[self.reset_num-1]
         else:
             return self.get_init_pose_random(**kwargs)
+
+    def gen_rand_pose(self, frame_xy, frame_theta, min_lin_dist, max_lin_dist,
+            min_ang_dist, max_ang_dist, additional_frame=None):
+        """Genertes random position and yaw.
+        Parameters
+        --------
+        frame_xy, frame_theta : xy and theta coordinate of the frame you want to compute a distance from.
+        min_lin_dist : the minimum linear distance from o_xy to a sample point.
+        max_lin_dist : the maximum linear distance from o_xy to a sample point.
+        min_ang_dist : the minimum angular distance (counter clockwise direction) from c_theta to a sample point.
+        max_ang_dist : the maximum angular distance (counter clockwise direction) from c_theta to a sample point.
+        """
+        if max_ang_dist < min_ang_dist:
+            max_ang_dist += 2*np.pi
+        rand_ang = util.wrap_around(np.random.rand() * \
+                        (max_ang_dist - min_ang_dist) + min_ang_dist)
+
+        rand_r = np.random.rand() * (max_lin_dist - min_lin_dist) + min_lin_dist
+        rand_xy = np.array([rand_r*np.cos(rand_ang), rand_r*np.sin(rand_ang)])
+        rand_xy_global = util.transform_2d_inv(rand_xy, frame_theta, np.array(frame_xy))
+        if additional_frame:
+            rand_xy_global = util.transform_2d_inv(rand_xy_global, additional_frame[2], np.array(additional_frame[:2]))
+        is_valid = not(self.MAP.is_collision(rand_xy_global))
+        return is_valid, [rand_xy_global[0], rand_xy_global[1], rand_ang + frame_theta]
 
     def get_init_pose_random(self,
                             lin_dist_range_a2b=METADATA['lin_dist_range_a2b'],
@@ -168,30 +193,6 @@ class TargetTrackingBase(gym.Env):
                 init_pose['targets'].append(init_pose_target)
         return init_pose
 
-    def gen_rand_pose(self, frame_xy, frame_theta, min_lin_dist, max_lin_dist,
-            min_ang_dist, max_ang_dist, additional_frame=None):
-        """Genertes random position and yaw.
-        Parameters
-        --------
-        frame_xy, frame_theta : xy and theta coordinate of the frame you want to compute a distance from.
-        min_lin_dist : the minimum linear distance from o_xy to a sample point.
-        max_lin_dist : the maximum linear distance from o_xy to a sample point.
-        min_ang_dist : the minimum angular distance (counter clockwise direction) from c_theta to a sample point.
-        max_ang_dist : the maximum angular distance (counter clockwise direction) from c_theta to a sample point.
-        """
-        if max_ang_dist < min_ang_dist:
-            max_ang_dist += 2*np.pi
-        rand_ang = util.wrap_around(np.random.rand() * \
-                        (max_ang_dist - min_ang_dist) + min_ang_dist)
-
-        rand_r = np.random.rand() * (max_lin_dist - min_lin_dist) + min_lin_dist
-        rand_xy = np.array([rand_r*np.cos(rand_ang), rand_r*np.sin(rand_ang)])
-        rand_xy_global = util.transform_2d_inv(rand_xy, frame_theta, np.array(frame_xy))
-        if additional_frame:
-            rand_xy_global = util.transform_2d_inv(rand_xy_global, additional_frame[2], np.array(additional_frame[:2]))
-        is_valid = not(self.MAP.is_collision(rand_xy_global))
-        return is_valid, [rand_xy_global[0], rand_xy_global[1], rand_ang + frame_theta]
-
     def add_history_to_state(self, state, num_target_dep_vars, num_target_indep_vars, logdetcov_idx):
         """
         Replacing the current logetcov value to a sequence of the recent few
@@ -234,6 +235,17 @@ class TargetTrackingBase(gym.Env):
         obs_noise_cov = np.array([[self.sensor_r_sd * self.sensor_r_sd, 0.0],
                                 [0.0, self.sensor_b_sd * self.sensor_b_sd]])
         return obs_noise_cov
+
+    def observe_and_update_belief(self):
+        observed = []
+        for i in range(self.num_targets):
+            observation = self.observation(self.targets[i])
+            observed.append(observation[0])
+            if observation[0]: # if observed, update the target belief.
+                self.belief_targets[i].update(observation[1], self.agent.state)
+                if not(self.has_discovered[i]):
+                    self.has_discovered[i] = 1
+        return observed
 
     def get_reward(self, is_training=True, **kwargs):
         return reward_fun_1(self.belief_targets, is_training=is_training, **kwargs)
@@ -280,15 +292,18 @@ def reward_fun(belief_targets, obstacles_pt, is_training=True, c_mean=0.1):
         mean_nlogdetcov = -np.mean(logdetcov)
     return reward, False, mean_nlogdetcov
 
-def reward_fun_1(belief_targets, is_col, is_training=True, c_mean=0.1, c_penalty=1.0):
+def reward_fun_1(belief_targets, is_col, is_training=True, c_mean=0.1, c_std=0.0, c_penalty=1.0):
     detcov = [LA.det(b_target.cov) for b_target in belief_targets]
     r_detcov_mean = - np.mean(np.log(detcov))
-    reward = c_mean * r_detcov_mean
+    r_detcov_std = - np.std(np.log(detcov))
+
+    reward = c_mean * r_detcov_mean + c_std * r_detcov_std
     if is_col :
         reward = min(0.0, reward) - c_penalty * 1.0
 
-    mean_nlogdetcov = None
-    if not(is_training):
-        logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
-        mean_nlogdetcov = -np.mean(logdetcov)
-    return reward, False, mean_nlogdetcov
+    # mean_nlogdetcov = None
+    # if not(is_training):
+    #     logdetcov = [np.log(LA.det(b_target.cov)) for b_target in belief_targets]
+    #     mean_nlogdetcov = -np.mean(logdetcov)
+    #     std_nlogdetcov =
+    return reward, False, r_detcov_mean, r_detcov_std

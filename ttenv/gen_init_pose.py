@@ -39,8 +39,14 @@ def main():
     while( not hasattr(timelimit_env, '_elapsed_steps')):
         timelimit_env = timelimit_env.env
     init_pose = []
+
+    params = {}
+    # This is an example. Please change this if necessary.
+    # from logger import TTENV_EVAL_SET
+    # params = TTENV_EVAL_SET[0]
+
     while(len(init_pose) < args.nb_init_pose): # test episode
-        obs, done = env.reset(), False
+        _, done = env.reset(**params), False
         if args.render:
             env.render()
         notes = input("%d, Pass? y/n"%len(init_pose))
