@@ -37,8 +37,7 @@ class DynamicMap(GridMap):
         self.map = np.zeros(self.mapdim)
         map_tmp = np.zeros(self.mapdim)
         if chosen_idx is None:
-            chosen_idx = np.random.choice(len(self.obstacles), 3, replace=False)
-            chosen_idx = np.append(chosen_idx, 2)
+            chosen_idx = np.random.choice(len(self.obstacles), 4, replace=False)
         if rot_angs is None:
             rot_angs = [np.random.choice(np.arange(-10,10,1) / 10. * 180) for _ in range(4)]
         for (i, c_id) in enumerate(chosen_idx):
