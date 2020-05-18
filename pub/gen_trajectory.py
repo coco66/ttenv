@@ -12,7 +12,7 @@ the reset function. For example,
     env.reset(**ex_var)
 """
 import numpy as np
-import envs
+import ttenv
 import argparse
 import pickle
 import os, time
@@ -28,8 +28,7 @@ parser.add_argument('--manual_check', type=int, default=1)
 args = parser.parse_args()
 
 def main():
-    env = envs.make(args.env,
-                    'target_tracking',
+    env = ttenv.make(args.env,
                     render=True,
                     directory=args.log_dir,
                     map_name=args.map,
@@ -41,13 +40,13 @@ def main():
         env_core = env_core.env
     env_core = env_core.env
 
-    from logger import TTENV_TEST_SET_PUB, TTENV_MULTI_TEST_SET, TTENV_TEST_SET_PUB_MORE
+    from pub.eval_params import TTENV_TEST_SET_PUB, TTENV_MULTI_TEST_SET, TTENV_TEST_SET_PUB_MORE, TTENV_MULTI_TEST_SET_2
     if args.nb_targets > 1:
-        test_params = TTENV_MULTI_TEST_SET
+        test_params = TTENV_MULTI_TEST_SET_2
     else:
         test_params = TTENV_TEST_SET_PUB
     for eval_num in range(len(test_params)):
-        print("TTENV_TEST_SET_PUB: Eval Num %d ..."%eval_num)
+        print("TTENV_MULTI_TEST_SET_2: Eval Num %d ..."%eval_num)
         init_pose = []
         target_paths = []
         map_info = []
