@@ -201,7 +201,6 @@ class GridMap(object):
         cs_ang_grid = r_max * np.array([np.cos(ang_grid), np.sin(ang_grid)])
         end_pt_global_frame = coord_change2g(cs_ang_grid, odom[-1]) + odom[:2, np.newaxis]
         end_rc = se2_to_cell_batch(end_pt_global_frame.T, self.mapmin, self.mapres)
-
         self.decay_visit_freq_map(decay_factor)
         visit_map_tmp = np.zeros(self.mapdim)
         for j in range(len(ang_grid)):
@@ -218,63 +217,6 @@ class GridMap(object):
                 i += 1
         if self.visit_map is not None and not(observed):
             self.visit_map += visit_map_tmp
-
-    def update_visit_freq_map_full(self, odom, decay_factor=1.0, ang_res=0.05,
-                fov=METADATA['fov']/180.0*np.pi, r_max=METADATA['sensor_r'], observed=True):
-        """
-        Update the visit frequency map from the given odometry. Unlike the above
-        function, this updates the frequency map ignoring the obstacles.
-        """
-        self.decay_visit_freq_map(decay_factor)
-        ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
-        closest_obstacle = (r_max, 0.0)
-        start_rc = self.se2_to_cell(odom[:2])
-        for ang in ang_grid:
-            end_pt_global_frame = coord_change2g(np.array(
-                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
-                            odom[-1]) + odom[:2]
-            end_rc = self.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-            i = ray_cells.shape[-1]
-            while(i > 0): # break!
-                i = i - 1
-                if self.in_bound_cell(ray_cells[:,i]):
-                    break # the farthest cell to be in the map region.
-            if self.visit_freq_map is not None:
-                self.visit_freq_map[ray_cells[0,:i+1], ray_cells[1,:i+1]] = 1.0
-            if self.visit_map is not None and not(observed):
-                self.visit_map[ray_cells[0,:i+1], ray_cells[1,:i+1]] += 1.0
-
-    def update_visit_freq_map(self, decay_factor, odom, ang_res=0.05,
-                    fov=METADATA['fov']/180*np.pi, r_max=METADATA['sensor_r']):
-        """
-        Return radial and angular distances of the closest obstacle/boundary cell
-        """
-        if self.visit_freq_map is None:
-            return
-        self.decay_visit_freq_map(decay_factor)
-        ang_grid = np.arange(-.5*fov, .5*fov, ang_res)
-        start_rc = self.se2_to_cell(odom[:2])
-        for ang in ang_grid:
-            end_pt_global_frame = coord_change2g(np.array(
-                            [r_max*np.cos(ang), r_max*np.sin(ang)]),
-                            odom[-1]) + odom[:2]
-            end_rc = self.se2_to_cell(end_pt_global_frame)
-            ray_cells = bresenham2D(start_rc[0], start_rc[1], end_rc[0], end_rc[1])
-            i = 0
-            if self.map is None:
-                while(i < ray_cells.shape[-1]):
-                    pt = self.cell_to_se2(ray_cells[:,i])
-                    if not(self.in_bound(pt)):
-                        break
-                    self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
-                    i += 1
-            else:
-                while(i < ray_cells.shape[-1]): # break!
-                    if self.is_collision_ray_cell(ray_cells[:,i]):
-                        break
-                    self.visit_freq_map[ray_cells[0,i], ray_cells[1,i]] = 1.0
-                    i += 1
 
     def local_map_helper(self, im_size, odom, local_mapmin, R, get_visit_freq=False):
         """
@@ -345,36 +287,6 @@ class GridMap(object):
             local_visit_maps.append(local_map_visit_i)
             local_mapmin_g.append(local_mapmin_g_i)
         return None, local_mapmin_g, np.array(local_visit_maps)
-
-    def local_map_seperate(self, im_size, odom):
-        """
-        This function returns
-        1) a local map only contains obstacle information.
-        2) local_mapmin_g
-        3) a local visit frequency map only contains visit frequency information.
-            This must use update_visit_freq_map_full() in order to get a correct
-            local map. The area outside the map is mapped to 1.0
-        It is important to note that the value range of the both map is 0 to 1.
-        """
-        R=np.array([[np.cos(odom[2] - np.pi/2), -np.sin(odom[2] - np.pi/2)],
-                  [np.sin(odom[2] - np.pi/2), np.cos(odom[2] - np.pi/2)]])
-        local_mapmin = np.array([-im_size/2*self.mapres[0], 0.0])
-
-        local_map = np.zeros((im_size, im_size))
-        local_visit_freq_map = np.zeros((im_size, im_size))
-        for r in range(im_size):
-            for c in range(im_size):
-                xy_local = cell_to_se2([r,c], local_mapmin, self.mapres)
-                xy_global = np.matmul(R, xy_local) + odom[:2]
-                cell_global = self.se2_to_cell(xy_global)
-                local_map[c,r] = int(self.is_collision_ray_cell(cell_global))
-                if self.in_bound(xy_global):
-                    local_visit_freq_map[c,r] = self.visit_freq_map[cell_global[0], cell_global[1]]
-                else:
-                    local_visit_freq_map[c,r] = 1.0
-
-        local_mapmin_g = np.matmul(R, local_mapmin) + odom[:2]
-        return local_map, local_mapmin_g, local_visit_freq_map
 
 def bresenham2D(sx, sy, ex, ey):
     """

@@ -40,25 +40,11 @@ def make(env_name, render=False, figID=0, record=False, ros=False, directory='',
     elif env_name == 'TargetTracking-v3':
         env0 = target_tracking.TargetTrackingEnv3(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v4':
-        env0 = target_tracking.TargetTrackingEnv4(num_targets=num_targets, **kwargs)
+        local_view = 1
+        env0 = target_imtracking.TargetTrackingEnv4(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-v5':
-        local_view = 1
+        local_view = 5
         env0 = target_imtracking.TargetTrackingEnv5(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v6':
-        local_view = 1
-        env0 = target_imtracking.TargetTrackingEnv6(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v7':
-        local_view = 5
-        env0 = target_imtracking.TargetTrackingEnv7(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v8':
-        local_view = 5
-        env0 = target_imtracking.TargetTrackingEnv8(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v9':
-        local_view = 5
-        env0 = target_imtracking.TargetTrackingEnv9(num_targets=num_targets, **kwargs)
-    elif env_name == 'TargetTracking-v10':
-        local_view = 1
-        env0 = target_imtracking.TargetTrackingEnv10(num_targets=num_targets, **kwargs)
     elif env_name == 'TargetTracking-info1':
         from ttenv.infoplanner_python.target_tracking_infoplanner import TargetTrackingInfoPlanner1
         env0 = TargetTrackingInfoPlanner1(num_targets=num_targets, **kwargs)
