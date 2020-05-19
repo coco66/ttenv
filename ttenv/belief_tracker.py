@@ -44,9 +44,7 @@ class KFbelief(object):
     def predict(self):
         # Prediction
         state_new = np.matmul(self.A, self.state)
-        cov_new = np.matmul(np.matmul(self.A, self.cov), self.A.T) +  self.W
-        if True: # LA.det(cov_new) < 1e6:
-            self.cov = cov_new
+        self.cov = np.matmul(np.matmul(self.A, self.cov), self.A.T) +  self.W
         self.state = np.clip(state_new, self.limit[0], self.limit[1])
 
     def update(self, z_t, x_t):
@@ -59,7 +57,7 @@ class KFbelief(object):
         # Kalman Filter Update
         r_pred, alpha_pred = util.relative_distance_polar(
                         self.state[:2], x_t[:2], x_t[2])
-        diff_pred = self.state[:2] - x_t[:2]
+        diff_pred = np.array(self.state[:2]) - np.array(x_t[:2])
         if self.dim == 2:
             Hmat = np.array([[diff_pred[0],diff_pred[1]],
                         [-diff_pred[1]/r_pred, diff_pred[0]/r_pred]])/r_pred
@@ -76,13 +74,8 @@ class KFbelief(object):
         K = np.matmul(np.matmul(self.cov, Hmat.T), LA.inv(R))
         C = np.eye(self.dim) - np.matmul(K, Hmat)
 
-        cov_new = np.matmul(C, self.cov)
-        state_new = self.state +  np.matmul(K, innov)
-
-        if True: #LA.det(cov_new) < 1e6:
-            self.cov = cov_new
-        self.state = np.clip(state_new, self.limit[0], self.limit[1])
-
+        self.cov = np.matmul(C, self.cov)
+        self.state = np.clip(self.state +  np.matmul(K, innov), self.limit[0], self.limit[1])
 
 class UKFbelief(object):
     """
@@ -174,11 +167,11 @@ class UKFbelief(object):
             return r_z
 
         sigmas = JulierSigmaPoints(n=dim, kappa=kappa)
-
         self.ukf = UnscentedKalmanFilter(dim, dim_z, sampling_period, fx=fx,
                     hx=hx, points=sigmas, x_mean_fn=x_mean_fn_,
                     z_mean_fn=z_mean_fn_, residual_x=residual_x_,
                     residual_z=residual_z_)
+
 
     def reset(self, init_state, init_cov):
         self.state = init_state
@@ -187,19 +180,21 @@ class UKFbelief(object):
         self.ukf.P = self.cov
         self.ukf.Q = self.W # process noise matrix
 
-    def update(self, observed, z_t, x_t, u_t=None):
+    def predict(self, u_t=None):
+        if u_t is None:
+            u_t = np.array([np.random.random(),
+                np.pi*np.random.random()-0.5*np.pi])
+
         # Kalman Filter Update
         self.ukf.predict(u=u_t)
+        self.cov = self.ukf.P
+        self.state = np.clip(self.ukf.x, self.limit[0], self.limit[1])
 
-        if observed:
-            r_pred, alpha_pred = util.relative_distance_polar(self.ukf.x[:2], x_t[:2], x_t[2])
-            self.ukf.update(z_t, R=self.obs_noise_func((r_pred, alpha_pred)),
-                                agent_state=x_t)
+    def update(self, z_t, x_t):
+        # Kalman Filter Update
+        r_pred, alpha_pred = util.relative_distance_polar(self.ukf.x[:2], x_t[:2], x_t[2])
+        self.ukf.update(z_t, R=self.obs_noise_func((r_pred, alpha_pred)),
+                            agent_state=x_t)
 
-        cov_new = self.ukf.P
-        state_new = self.ukf.x
-
-        if LA.det(cov_new) < 1e6:
-            self.cov = cov_new
-        if not(self.collision_func(state_new[:2])):
-            self.state = np.clip(state_new, self.limit[0], self.limit[1])
+        self.cov = self.ukf.P
+        self.state = np.clip(self.ukf.x, self.limit[0], self.limit[1])
