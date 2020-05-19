@@ -11,7 +11,7 @@ the reset function. For example,
     obs.reset(**ex_var)
 """
 import numpy as np
-import envs
+import ttenv
 import argparse
 import pickle
 import os, time
@@ -27,8 +27,7 @@ parser.add_argument('--log_dir', type=str, default='.')
 args = parser.parse_args()
 
 def main():
-    env = envs.make(args.env,
-                    'target_tracking',
+    env = ttenv.make(args.env,
                     render=bool(args.render),
                     directory=args.log_dir,
                     map_name=args.map,
