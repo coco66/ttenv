@@ -1,5 +1,5 @@
 # Target Tracking Environment for Reinforcement Learning (OpenAI gym framework)
-This repository contains target tracking environments for reinforcement learning (RL) presented in the following paper which applies RL to active target tracking problems.
+This repository contains target tracking environments for reinforcement learning (RL) presented in the following papers which applies RL to active target tracking problems.
 * Learning to Track Dynamic Targets with Partially Known Environments : H. Jeong, H. Hassani, M. Morari, D. D. Lee, and G. J. Pappas, “Learning to Track Dynamic Targets with Partially Known Environments,”, IEEE Transactions on Robotics (T-RO), (under-review)
 
 * Learning Q-network for Active Information Acquisition (https://arxiv.org/abs/1910.10754) : H. Jeong, B. Schlotfeldt, H. Hassani, M. Morari, D. D. Lee, and G. J. Pappas, “Learning Q-network for Active Information Acquisition,”, IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), Macao, China, 2019
@@ -16,27 +16,31 @@ Clone the repository
 ```
 git clone https://github.com/coco66/ttenv.git
 ```
+```
+cd ttenv && source setup
+```
 run_example.py shows a brief example of using the ttenv library with a random action selection.
 ```
-cd ttenv && python run_example.py --render 1
+python run_example.py --render 1
 ```
 
 ## Environments:
-See the description in target_tracking.py for more details.
+See the description in target_tracking.py and target_imtracking.py for more details.
 * TargetTracking-v0 : A static target model with Kalman Filter belief tracker.
 Targets only move with a small noise in the x and y-axis and Kalman Filter is used for the belief estimate. A target state of each target consists of its x,y position.
 
 * TargetTracking-v1 : A double integrator target model with Kalman Filter belief tracker.
 A dynamic model of each target follows a double integrator and Kalman Filter is used for the belief estimate. A target state of each target consists of its x,y position and xdot, ydot.
 
-* TargetTracking-v2 : Predefined target paths with Kalman Filter belief tracker.
-It uses a predefined target path and the path file must be provided. Similar to the v1 environment, it uses a Kalman Filter with a double integrator model for the belief estimate.
-
-* TargetTracking-v3 : SE2 Target model with UKF belief tracker
+* TargetTracking-v2 : SE2 Target model with UKF belief tracker
 A dynamic model of each target follows the SE2 dynamics with a certain control policy for linear and angular velocities. The target state consists of x, y, and yaw.
 
-* TargetTracking-v4 : SE2 Target model with UKF belief tracker (including velocity estimates).
+* TargetTracking-v3 : SE2 Target model with UKF belief tracker (including velocity estimates).
 Similar to the v3 environment but the UKF estimates not only x, y, and yaw but also the control policy (linear and angular velocities) of each target.
+
+* TargetTracking-v4 : A double integrator target model with Kalman Filter belief tracker. A map state included.
+
+* TargetTracking-v5 : A double integrator target model with Kalman Filter belief tracker. A map and visit-frequency states are included.
 
 ### Initialization
 Initial positions of targets and the agent significantly influence the reward.  
