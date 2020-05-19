@@ -201,7 +201,7 @@ class TargetTrackingEnv1(TargetTrackingBase):
                                     self.belief_targets[i].state[:2],
                                     self.belief_targets[i].state[2:],
                                     self.agent.state[:2], self.agent.state[2],
-                                    agent_vw[0], agent_vw[1])
+                                    action_vw[0], action_vw[1])
             self.state.extend([r_b, alpha_b, r_dot_b, alpha_dot_b,
                                     np.log(LA.det(self.belief_targets[i].cov)),
                                     float(observed[i])])
