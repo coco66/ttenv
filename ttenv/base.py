@@ -61,7 +61,7 @@ class TargetTrackingBase(gym.Env):
 
     def reset(self, **kwargs):
         self.MAP.generate_map(**kwargs)
-        self.has_discovered = [0] * self.num_targets
+        self.has_discovered = [1] * self.num_targets # Set to 0 values for your evaluation purpose.
         self.state = []
         self.num_collisions = 0
         return self.get_init_pose(**kwargs)
