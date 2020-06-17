@@ -44,3 +44,45 @@ METADATA_multi_v1={
 
 # Designate a metadata version to be used throughout the target tracking env.
 METADATA = METADATA_multi_v1
+
+TTENV_EVAL_SET = [
+        { # Tracking
+        'lin_dist_range_a2b':(3.0, 10.0),
+        'ang_dist_range_a2b':(-np.pi, np.pi),
+        'lin_dist_range_b2t':(0.0, 3.0),
+        'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
+        'blocked':False,
+        'target_speed_limit': 3.2,
+        'const_q':0.5,
+        },
+        { # Discovery
+        'lin_dist_range_a2b':(3.0, 10.0),
+        'ang_dist_range_a2b':(-np.pi, np.pi),
+        'lin_dist_range_b2t':(10.0, 15.0),
+        'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
+        'blocked':None,
+        'target_speed_limit': 2.0,
+        'const_q': 0.2,
+        },
+        { # Navigation
+        'lin_dist_range_a2b':(10.0, 20.0),
+        'ang_dist_range_a2b':(-np.pi, np.pi),
+        'lin_dist_range_b2t':(0.0, 3.0),
+        'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
+        'blocked':True,
+        'target_speed_limit': 2.0,
+        'const_q': 0.2,
+        },
+]
+
+TTENV_EVAL_MULTI_SET = [
+        {
+        'lin_dist_range_a2b':(3.0, 10.0),
+        'ang_dist_range_a2b':(-np.pi, np.pi),
+        'lin_dist_range_b2t':(0.0, 3.0),
+        'ang_dist_range_b2t':(-np.pi/2, np.pi/2),
+        'blocked':None,
+        'target_speed_limit':1.0,
+        'const_q':0.02,
+        }
+]
