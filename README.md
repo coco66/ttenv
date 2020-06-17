@@ -54,6 +54,10 @@ Currently, you can randomly initialize them within a certain conditions or provi
 * Initialization with a given a list of poses
   You can generate a list of initial positions for the agent, targets, and belief targets using ttenv/gen_init_pose.py.
 
+## Metadata
+Some metadata examples for the environment setup are presented in ttenv/ttenv/metatdata.py.
+METADATA_v0 was used for the experiments presented in “Learning Q-network for Active Information Acquisition”. It is slightly different due to the update on the base structure of the repository. METADATA_v1 and METADATA_multi_v1 were used for the experiments presented in “Learning to Track Dynamic Targets with Partially Known Environments”.
+
 ## Running with RL
 Examples of learning a deep reinforcement learning policy can be found in the ADFQ repository (https://github.com/coco66/ADFQ).
 * DQN : ADFQ/deep_adfq/baselines0/deepq/run_tracking.py
